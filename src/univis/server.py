@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
@@ -24,11 +25,20 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 logger = logging.getLogger(__name__)
 
+_MAX_HISTORY = 10000
+_SESSION_RE = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
+
 # Session -> list of subscribed WebSocket connections
 _subscribers: dict[str, list[WebSocket]] = {}
 
 # Session -> history of messages (for late-joining dashboards)
 _history: dict[str, list[dict]] = {}
+
+
+def _validate_session(session_id: str) -> JSONResponse | None:
+    if not _SESSION_RE.match(session_id):
+        return JSONResponse(status_code=400, content={'error': 'invalid session_id'})
+    return None
 
 
 @asynccontextmanager
@@ -59,6 +69,9 @@ app.add_middleware(
 @app.post('/api/push/{session_id}')
 async def push_data(session_id: str, request: Request) -> JSONResponse:
     """Receive metric data from SDK and broadcast to subscribers."""
+    err = _validate_session(session_id)
+    if err:
+        return err
     try:
         body = await request.json()
     except Exception:
@@ -74,6 +87,8 @@ async def push_data(session_id: str, request: Request) -> JSONResponse:
         )
 
     _history.setdefault(session_id, []).append(body)
+    if len(_history[session_id]) > _MAX_HISTORY:
+        _history[session_id] = _history[session_id][-_MAX_HISTORY:]
 
     payload = json.dumps(body, ensure_ascii=False)
     dead: list[WebSocket] = []
@@ -84,8 +99,10 @@ async def push_data(session_id: str, request: Request) -> JSONResponse:
         except Exception:
             dead.append(ws)
 
-    for ws in dead:
-        _subscribers.get(session_id, []).remove(ws)
+    if dead:
+        subs = _subscribers.get(session_id)
+        if subs:
+            _subscribers[session_id] = [ws for ws in subs if ws not in set(dead)]
 
     return JSONResponse(status_code=200, content={'status': 'ok'})
 
@@ -96,6 +113,9 @@ async def push_data(session_id: str, request: Request) -> JSONResponse:
 @app.websocket('/ws/{session_id}')
 async def ws_subscribe(websocket: WebSocket, session_id: str) -> None:
     """Dashboard connects here to receive real-time updates."""
+    if not _SESSION_RE.match(session_id):
+        await websocket.close(code=4000, reason='invalid session_id')
+        return
     await websocket.accept()
     _subscribers.setdefault(session_id, []).append(websocket)
 
@@ -145,6 +165,8 @@ async def list_sessions() -> dict[str, Any]:
 @app.get('/api/history/{session_id}')
 async def get_history(session_id: str) -> list[dict]:
     """Get full message history for a session."""
+    if not _SESSION_RE.match(session_id):
+        return []
     return _history.get(session_id, [])
 
 

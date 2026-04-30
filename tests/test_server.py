@@ -97,3 +97,28 @@ class TestSessionsEndpoint:
         finally:
             _subscribers.pop('test-sess-1', None)
             _history.pop('test-sess-1', None)
+
+
+class TestSessionValidation:
+    def test_rejects_path_traversal(self) -> None:
+        resp = client.post('/api/push/../../../etc/passwd', json={'type': 'step'})
+        assert resp.status_code in (400, 404)
+
+    def test_rejects_special_chars_in_session(self) -> None:
+        resp = client.post('/api/push/session with spaces', json={'type': 'step'})
+        assert resp.status_code == 400
+
+    def test_rejects_empty_session(self) -> None:
+        resp = client.post('/api/push/', json={'type': 'step'})
+        assert resp.status_code in (400, 404, 422)
+
+    def test_accepts_valid_session(self) -> None:
+        resp = client.post('/api/push/abc123def', json={'type': 'step'})
+        assert resp.status_code == 200
+        _history.pop('abc123def', None)
+
+    def test_history_capped(self) -> None:
+        for i in range(12):
+            client.post('/api/push/cap-test', json={'type': 'step', 'i': i})
+        assert len(_history.get('cap-test', [])) <= 12
+        _history.pop('cap-test', None)

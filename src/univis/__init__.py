@@ -25,6 +25,7 @@ def attach(
     transport: str = 'file',
     output_dir: str = '.',
     port: int = 8765,
+    session_id: str | None = None,
 ) -> Tracker:
     """Attach a UniVis tracker to a Transformer model.
 
@@ -35,6 +36,7 @@ def attach(
         transport: "file" for JSONL output, "websocket" for live dashboard.
         output_dir: Directory for output files (JSONL data + HTML report).
         port: WebSocket port (only used when transport="websocket").
+        session_id: Optional session ID (auto-generated UUID if None).
 
     Returns:
         A Tracker instance. Call tracker.on_step() during inference,
@@ -47,6 +49,7 @@ def attach(
         transport_mode=transport,
         output_dir=output_dir,
         port=port,
+        session_id=session_id,
     )
 
 

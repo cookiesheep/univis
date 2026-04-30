@@ -80,6 +80,8 @@ class ModelProbe:
     def flush_step(self, token_index: int) -> list[dict]:
         """Return buffered layer metrics for the current step and reset."""
         data = list(self._step_buffer)
+        for entry in data:
+            entry['token_idx'] = token_index
         self._step_buffer.clear()
         return data
 

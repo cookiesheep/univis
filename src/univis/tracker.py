@@ -162,9 +162,11 @@ def create_tracker(
     transport_mode: str = 'file',
     output_dir: str = '.',
     port: int = 8765,
+    session_id: str | None = None,
 ) -> Tracker:
     """Factory: build a Tracker with auto-detected hooks and configured transport."""
-    session_id = uuid.uuid4().hex[:16]
+    if session_id is None:
+        session_id = uuid.uuid4().hex[:16]
 
     # Detect model structure
     prefixes = hook_prefixes or detect_block_prefixes(model)

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import torch.nn as nn
+
+logger = logging.getLogger(__name__)
 
 
 # Known block name prefixes for common architectures
@@ -19,7 +22,7 @@ def detect_block_prefixes(model: nn.Module) -> list[str]:
     """Detect Transformer block prefixes by scanning named_modules.
 
     Returns a list of matching prefixes (usually just one).
-    Raises RuntimeError if no known pattern matches.
+    Returns empty list and logs a warning if no known pattern matches.
     """
     names = [name for name, _ in model.named_modules()]
     for prefix in _BLOCK_PREFIXES:
@@ -47,11 +50,13 @@ def detect_block_prefixes(model: nn.Module) -> list[str]:
     if fallback:
         return fallback
 
-    raise RuntimeError(
-        f'Could not detect Transformer block structure. '
-        f'Top-level modules: {[n for n, _ in list(model.named_modules())[:20]]}.\n'
-        f'Pass hook_prefixes manually, e.g. hook_prefixes=["model.layers."]'
+    logger.warning(
+        'No known Transformer block pattern detected in model. '
+        'Top-level modules: %s. '
+        'Pass hook_prefixes manually, e.g. hook_prefixes=["model.layers."]',
+        [n for n, _ in list(model.named_modules())[:20]],
     )
+    return []
 
 
 def get_layer_count(model: nn.Module, prefix: str) -> int:

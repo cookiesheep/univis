@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html as html_mod
 import json
 from pathlib import Path
 from typing import Any
@@ -28,7 +29,7 @@ def _build_heatmap_data(steps: list[dict]) -> tuple[list[list], list[str], list[
         token_labels.append(str(step.get('token_idx', len(token_labels))))
         for layer in step.get('layers', []):
             val = layer.get('relative_delta', 0)
-            points.append([step['token_idx'], layer.get('idx', 0), val])
+            points.append([step.get('token_idx', len(token_labels) - 1), layer.get('idx', 0), val])
             if val > max_val:
                 max_val = val
 
@@ -104,8 +105,8 @@ def generate_report(
 
     echarts_tag = _get_echarts_source(offline)
 
-    session_id = meta.get('session_id', 'unknown')[:8]
-    model_name = meta.get('model_name', 'unknown')
+    session_id = html_mod.escape(meta.get('session_id', 'unknown')[:8])
+    model_name = html_mod.escape(meta.get('model_name', 'unknown'))
     num_layers = meta.get('num_layers', 0)
 
     heatmap_points, token_labels, layer_labels, max_delta = _build_heatmap_data(steps)
@@ -198,7 +199,7 @@ def generate_report(
     yAxis: {{ type: 'category', data: layerLabels, name: 'Layer',
               axisLabel: {{ color: '#666', fontSize: 11 }} }},
     visualMap: {{
-      min: 0, max: {max_delta * 1.1:.4f}, calculable: true,
+      min: 0, max: {max(max_delta * 1.1, 0.001):.4f}, calculable: true,
       orient: 'horizontal', left: 'center', bottom: '2%',
       inRange: {{ color: ['#e8e8e8','#ffe0b2','#ffb74d','#ff7043','#e53935','#b71c1c'] }},
       textStyle: {{ color: '#666' }}
@@ -223,10 +224,11 @@ def generate_report(
   var tbody = document.querySelector('#summary-table');
   layerSummary.forEach(function(l) {{
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + (layerLabels[l.idx] || 'Layer ' + l.idx) + '</td>' +
-                   '<td>' + l.avg_delta.toFixed(4) + '</td>' +
-                   '<td>' + l.avg_cosim.toFixed(4) + '</td>' +
-                   '<td>' + l.avg_sparsity.toFixed(4) + '</td>';
+    var td1 = document.createElement('td'); td1.textContent = layerLabels[l.idx] || 'Layer ' + l.idx;
+    var td2 = document.createElement('td'); td2.textContent = l.avg_delta.toFixed(4);
+    var td3 = document.createElement('td'); td3.textContent = l.avg_cosim.toFixed(4);
+    var td4 = document.createElement('td'); td4.textContent = l.avg_sparsity.toFixed(4);
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
     tbody.appendChild(tr);
   }});
 
