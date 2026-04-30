@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+*.jsonl
+univis_report_*.html
+node_modules/
+dashboard/dist/
+.omc/
+.env
