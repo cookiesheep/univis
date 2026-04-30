@@ -78,3 +78,41 @@ class TestEntropy:
         logits = torch.zeros(1, 5, 10)
         result = compute_entropy(logits)
         assert result > 0
+
+
+class TestBatchAggregation:
+    """Verify batch>1 returns mean of per-item metrics, identical to batch=1 for uniform batches."""
+
+    def test_relative_delta_batch(self):
+        inp = torch.tensor([[1.0, 2.0], [1.0, 2.0]])
+        out = torch.tensor([[2.0, 3.0], [2.0, 3.0]])
+        single = compute_relative_delta(inp[:1], out[:1])
+        batch = compute_relative_delta(inp, out)
+        assert abs(single - batch) < 1e-6
+
+    def test_relative_delta_mixed_batch(self):
+        inp = torch.tensor([[1.0, 0.0], [1.0, 0.0]])
+        out = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
+        result = compute_relative_delta(inp, out)
+        s0 = compute_relative_delta(inp[:1], out[:1])
+        s1 = compute_relative_delta(inp[1:], out[1:])
+        assert abs(result - (s0 + s1) / 2) < 1e-6
+
+    def test_cosine_sim_batch(self):
+        a = torch.tensor([[1.0, 0.0], [1.0, 0.0]])
+        b = torch.tensor([[0.0, 1.0], [0.0, 1.0]])
+        single = compute_cosine_sim(a[:1], b[:1])
+        batch = compute_cosine_sim(a, b)
+        assert abs(single - batch) < 1e-6
+
+    def test_sparsity_batch(self):
+        t = torch.tensor([[0.0, 1.0], [0.0, 1.0]])
+        single = compute_sparsity(t[:1])
+        batch = compute_sparsity(t)
+        assert abs(single - batch) < 1e-6
+
+    def test_entropy_batch(self):
+        logits = torch.zeros(2, 10)
+        single = compute_entropy(logits[:1])
+        batch = compute_entropy(logits)
+        assert abs(single - batch) < 1e-6

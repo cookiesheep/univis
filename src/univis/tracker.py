@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import time
 import uuid
 from pathlib import Path
@@ -14,6 +13,7 @@ import torch.nn as nn
 from .detection import detect_block_prefixes, get_layer_count
 from .metrics import compute_entropy
 from .probe import ModelProbe
+from .report import generate_report
 from .transport import FileTransport, HttpPushTransport, MultiTransport, Transport
 
 
@@ -29,6 +29,7 @@ class Tracker:
         model_name: str,
         num_layers: int,
         layer_names: list[str],
+        output_dir: str = '.',
     ) -> None:
         self._model = model
         self._probe = probe
@@ -37,6 +38,7 @@ class Tracker:
         self._model_name = model_name
         self._num_layers = num_layers
         self._layer_names = layer_names
+        self._output_dir = output_dir
         self._start_time = time.perf_counter()
         self._step_count = 0
         self._all_steps: list[dict] = []
@@ -79,7 +81,7 @@ class Tracker:
         self._all_steps.append(message)
         self._step_count += 1
 
-    def finish(self, output_dir: str = '.') -> str:
+    def finish(self, output_dir: str | None = None) -> str:
         """End tracking, remove hooks, generate HTML report."""
         if self._finished:
             return ''
@@ -98,8 +100,7 @@ class Tracker:
         self._transport.close()
         self._probe.remove_hooks()
 
-        # Generate HTML report
-        report_path = self._generate_report(output_dir)
+        report_path = self._generate_report(output_dir or self._output_dir)
         return str(report_path)
 
     def remove(self) -> None:
@@ -109,72 +110,49 @@ class Tracker:
             self._transport.close()
             self._finished = True
 
+    def logits_processor(self, tokenizer=None):
+        """Return a logits processor for model.generate().
+
+        Usage:
+            tracker = univis.attach(model, transport='file')
+            lp = tracker.logits_processor(tokenizer)
+            output = model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
+            tracker.finish()
+
+        Args:
+            tokenizer: Optional tokenizer for decoding generated tokens.
+
+        Returns:
+            A callable compatible with HuggingFace LogitsProcessorList.
+        """
+        tracker = self
+        tok = tokenizer
+
+        def processor(input_ids, scores):
+            if not tracker._finished:
+                next_token_id = scores.argmax(dim=-1)
+                token_text = ''
+                if tok is not None:
+                    token_text = tok.decode(next_token_id[0])
+                tracker.on_step(
+                    token_index=tracker._step_count,
+                    generated_token=token_text,
+                    logits=scores,
+                )
+            return scores
+
+        return processor
+
     def _generate_report(self, output_dir: str) -> Path:
-        """Generate a static HTML report with embedded data."""
-        out = Path(output_dir) / f'univis_report_{self._session_id[:8]}.html'
-
-        # Collect summary stats
-        all_deltas = [
-            l['relative_delta']
-            for s in self._all_steps
-            for l in s.get('layers', [])
-            if 'relative_delta' in l
-        ]
-        avg_delta = sum(all_deltas) / max(len(all_deltas), 1)
-
-        html = f"""<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="utf-8">
-<title>UniVis Report — {self._session_id[:8]}</title>
-<style>
-body {{ font-family: system-ui, sans-serif; max-width: 960px; margin: 2em auto; padding: 0 1em; }}
-h1 {{ color: #333; }}
-table {{ border-collapse: collapse; width: 100%; }}
-th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-th {{ background: #f5f5f5; }}
-.stat {{ font-size: 1.2em; margin: 0.5em 0; }}
-</style>
-</head>
-<body>
-<h1>UniVis Analysis Report</h1>
-<div>
-<p class="stat"><strong>Model:</strong> {self._model_name}</p>
-<p class="stat"><strong>Layers:</strong> {self._num_layers}</p>
-<p class="stat"><strong>Tokens generated:</strong> {self._step_count}</p>
-<p class="stat"><strong>Avg relative delta:</strong> {avg_delta:.4f}</p>
-<p class="stat"><strong>Session:</strong> {self._session_id[:8]}</p>
-</div>
-<h2>Per-Layer Average Relative Delta</h2>
-<table>
-<tr><th>Layer</th><th>Avg RelDelta</th><th>Avg CosSim</th><th>Avg Sparsity</th></tr>
-{self._layer_summary_rows()}
-</table>
-<h2>Raw Data</h2>
-<p>Full JSON data: <code>univis_data_{self._session_id[:8]}.jsonl</code></p>
-</body>
-</html>"""
-        out.write_text(html, encoding='utf-8')
-        return out
-
-    def _layer_summary_rows(self) -> str:
-        rows = []
-        for i, name in enumerate(self._layer_names):
-            deltas, cosims, spars = [], [], []
-            for step in self._all_steps:
-                for layer in step.get('layers', []):
-                    if layer.get('idx') == i:
-                        deltas.append(layer.get('relative_delta', 0))
-                        cosims.append(layer.get('cosine_sim', 0))
-                        spars.append(layer.get('sparsity', 0))
-            avg_d = sum(deltas) / len(deltas) if deltas else 0
-            avg_c = sum(cosims) / len(cosims) if cosims else 0
-            avg_s = sum(spars) / len(spars) if spars else 0
-            rows.append(
-                f'<tr><td>{name}</td>'
-                f'<td>{avg_d:.4f}</td><td>{avg_c:.4f}</td><td>{avg_s:.4f}</td></tr>'
-            )
-        return '\n'.join(rows)
+        """Generate HTML report with ECharts visualizations."""
+        meta = {
+            'session_id': self._session_id,
+            'model_name': self._model_name,
+            'num_layers': self._num_layers,
+        }
+        out_path = Path(output_dir) / f'univis_report_{self._session_id[:8]}.html'
+        generate_report(self._all_steps, meta, out_path)
+        return out_path
 
 
 def create_tracker(
@@ -234,4 +212,5 @@ def create_tracker(
         model_name=model_name,
         num_layers=num_layers,
         layer_names=layer_names,
+        output_dir=output_dir,
     )
