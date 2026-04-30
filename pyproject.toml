@@ -52,5 +52,8 @@ Repository = "https://github.com/cookiesheep/univis"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+univis = ["data/echarts.min.js"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

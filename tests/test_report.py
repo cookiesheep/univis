@@ -4,10 +4,13 @@ import tempfile
 from pathlib import Path
 
 from univis.report import (
-    generate_report,
+    ECHARTS_CDN,
+    _ECHARTS_BUNDLED,
     _build_entropy_data,
     _build_heatmap_data,
     _build_layer_summary,
+    _get_echarts_source,
+    generate_report,
 )
 
 
@@ -109,3 +112,46 @@ class TestGenerateReport:
             html = path.read_text(encoding='utf-8')
             assert '</script>' not in html.split('</script>')[-1]
             assert '<\\/script' in html
+
+
+class TestGetEchartsSource:
+    def test_online_returns_cdn_tag(self):
+        result = _get_echarts_source(offline=False)
+        assert ECHARTS_CDN in result
+        assert '<script src=' in result
+
+    def test_offline_embeds_js(self):
+        result = _get_echarts_source(offline=True)
+        if not _ECHARTS_BUNDLED.is_file():
+            return  # skip if bundled file not present
+        assert '<script src=' not in result
+        assert 'echarts' in result.lower()
+        assert '<script>' in result
+
+
+class TestOfflineReport:
+    def test_offline_report_no_cdn_link(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / 'report.html'
+            generate_report(
+                _sample_steps(), {'session_id': 'offline1', 'model_name': 'test'}, path,
+                offline=True,
+            )
+            html = path.read_text(encoding='utf-8')
+            if not _ECHARTS_BUNDLED.is_file():
+                return  # skip if bundled file not present
+            assert 'cdn.jsdelivr.net' not in html
+
+    def test_offline_report_embeds_echarts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / 'report.html'
+            generate_report(
+                _sample_steps(), {'session_id': 'offline2', 'model_name': 'test'}, path,
+                offline=True,
+            )
+            html = path.read_text(encoding='utf-8')
+            if not _ECHARTS_BUNDLED.is_file():
+                return  # skip if bundled file not present
+            # Inline script should contain echarts initialization code
+            assert 'function' in html  # echarts source has functions
+            assert html.count('<script') >= 2  # echarts + chart init

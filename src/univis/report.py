@@ -6,8 +6,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-
+_ECHARTS_BUNDLED = Path(__file__).parent / 'data' / 'echarts.min.js'
 ECHARTS_CDN = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'
+
+
+def _get_echarts_source(offline: bool = False) -> str:
+    """Return inline JS content (offline) or CDN script tag (online)."""
+    if offline and _ECHARTS_BUNDLED.is_file():
+        return f'<script>\n{_ECHARTS_BUNDLED.read_text(encoding="utf-8")}\n</script>'
+    return f'<script src="{ECHARTS_CDN}"></script>'
 
 
 def _build_heatmap_data(steps: list[dict]) -> tuple[list[list], list[str], list[str], float]:
@@ -79,6 +86,7 @@ def generate_report(
     steps: list[dict],
     meta: dict[str, Any],
     output_path: str | Path,
+    offline: bool = False,
 ) -> str:
     """Generate a self-contained HTML report with ECharts visualizations.
 
@@ -86,12 +94,15 @@ def generate_report(
         steps: List of step message dicts from Tracker._all_steps.
         meta: Dict with session metadata (session_id, model_name, etc).
         output_path: Where to write the HTML file.
+        offline: If True, embed ECharts JS inline for offline use.
 
     Returns:
         Path to the generated report.
     """
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
+
+    echarts_tag = _get_echarts_source(offline)
 
     session_id = meta.get('session_id', 'unknown')[:8]
     model_name = meta.get('model_name', 'unknown')
@@ -121,7 +132,7 @@ def generate_report(
 <head>
 <meta charset="utf-8">
 <title>UniVis Report — {session_id}</title>
-<script src="{ECHARTS_CDN}"></script>
+{echarts_tag}
 <style>
   body {{ font-family: system-ui, sans-serif; max-width: 1100px; margin: 1em auto; padding: 0 1em;
          background: #fafafa; color: #333; }}

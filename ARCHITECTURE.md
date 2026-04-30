@@ -1,6 +1,6 @@
 # UniVis 技术架构文档
 
-> 最后更新：2026-04-30 | 版本：v0.1 | 状态：规划中
+> 最后更新：2026-04-30 | 版本：v0.2 | 状态：开发中
 > 本文档是开发时的主要技术参考，与 PRD.md 配合使用。
 
 ## 1. 系统架构
@@ -10,36 +10,48 @@
 │
 │  import univis
 │  tracker = univis.attach(model)
-│  for token in generate():
-│      tracker.on_step()
+│  # 方式 A：手动循环 + tracker.on_step()
+│  # 方式 B：model.generate(logits_processor=[tracker.logits_processor(tokenizer)])
+│  tracker.finish()  → 生成 HTML 报告
 │
 ▼
-┌──────────────────────────────────────────────────┐
-│                  univis SDK                       │
-│                                                   │
-│  probe.py          metrics.py       transport.py  │
-│  ┌──────────┐     ┌──────────┐    ┌────────────┐ │
-│  │ 注册     │     │ 相对增量 │    │ WebSocket  │ │
-│  │ forward  │────▶│ 余弦相似 │───▶│ JSONL 文件 │ │
-│  │ _hook    │     │ 激活稀疏 │    │            │ │
-│  │ 步骤缓冲 │     │ 预测熵   │    └─────┬──────┘ │
-│  └──────────┘     └──────────┘          │        │
-└──────────────────────────────────────────┼────────┘
-                                           │ WebSocket (JSON)
-                                           ▼
-                                  ┌──────────────────┐
-                                  │   Dashboard      │
-                                  │                  │
-                                  │  React + ECharts │
-                                  │  动态热力图       │
-                                  │  Token 列表       │
-                                  └──────────────────┘
+┌───────────────────────────────────────────────────────┐
+│                    univis SDK                         │
+│                                                       │
+│  detection.py    probe.py       metrics.py   report.py│
+│  (模型结构检测)  (hook注册)     (指标计算)   (HTML报告) │
+│       │            │              │              │     │
+│       └────────────┘              │              │     │
+│            tracker.py ◀───────────┘              │     │
+│       (用户API: on_step/finish/logits_processor) │     │
+│                       │                           │     │
+│                 transport.py                       │     │
+│            ┌────────┼────────┐                     │     │
+│            │        │        │                     │     │
+│         File    HttpPush  Multi               __main__.py│
+│        (JSONL)  (→Server)                     (CLI入口) │
+└────────────────┬─────┴────────────────────────────────┘
+                 │ HTTP POST → Server → WebSocket
+                 ▼
+        ┌──────────────────┐
+        │   Dashboard      │
+        │                  │
+        │  React + ECharts │
+        │  动态热力图       │
+        │  Token 列表       │
+        │  层过滤器         │
+        └──────────────────┘
 ```
 
-三层结构：
+三条独立使用路径：
+1. **纯 SDK**：`attach()` → `on_step()` → `finish()` → HTML 报告（不依赖 Server/Dashboard）
+2. **SDK + Server + Dashboard**：实时可视化推送（HTTP POST → WebSocket → ECharts）
+3. **CLI**：`python -m univis serve` 或 `python -m univis report <jsonl>`
+
+核心数据流：
 1. **Probe（探针）**：注册在模型上，每次 forward 自动触发，采集 tensor
-2. **Metrics（计算）**：将 tensor 压缩为标量指标
-3. **Transport（传输）**：将指标发送到外部（WebSocket / 文件）
+2. **Metrics（计算）**：将 tensor 压缩为标量指标（支持 batch>1 聚合）
+3. **Transport（传输）**：将指标发送到外部（JSONL 文件 / HTTP POST）
 
 ## 2. 数据流（Token 生成的一个 Step）
 
@@ -244,7 +256,7 @@ print(f"Report: {report}")
 
 ## 5. 模块设计
 
-### 5.1 probe.py — Hook 管理
+### 5.1 probe.py — Hook 管理 ✅ 已实现
 
 职责：在模型指定模块上注册 forward_hook，将每次 forward 的 input/output 缓存起来。
 
@@ -305,9 +317,9 @@ def detect_block_prefixes(model: torch.nn.Module) -> list[str]:
     ...
 ```
 
-### 5.2 metrics.py — 指标计算
+### 5.2 metrics.py — 指标计算 ✅ 已实现
 
-所有函数接收 CPU tensor，返回 float。
+所有函数接收 CPU tensor，返回 float。支持 batch>1 输入（3D tensor），自动取 `[:, -1, :]` 最后 token 位置，batch 维度做 per-item 计算后取 mean。
 
 ```python
 def compute_relative_delta(input_tensor: torch.Tensor, output_tensor: torch.Tensor) -> float:
@@ -370,7 +382,7 @@ def compute_entropy(logits: torch.Tensor) -> float:
     return entropy.item()
 ```
 
-### 5.3 transport.py — 数据传输
+### 5.3 transport.py — 数据传输 ✅ 已实现
 
 ```python
 from abc import ABC, abstractmethod
@@ -401,7 +413,7 @@ class WebSocketTransport(Transport):
         await self.ws.close()
 ```
 
-### 5.4 server.py — WebSocket 服务
+### 5.4 server.py — WebSocket 服务 ✅ 已实现
 
 ```python
 from fastapi import FastAPI, WebSocket
@@ -410,40 +422,45 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"])
 
-# 存放活跃的 WebSocket 连接
-connections: dict[str, WebSocket] = {}
-
-@app.websocket("/ws/{session_id}")
-async def ws_endpoint(websocket: WebSocket, session_id: str):
-    await websocket.accept()
-    connections[session_id] = websocket
-    try:
-        while True:
-            await websocket.receive_text()  # keep alive
-    except Exception:
-        connections.pop(session_id, None)
-
-async def broadcast(session_id: str, data: dict):
-    """SDK 调用此函数向 Dashboard 推送数据。"""
-    if session_id in connections:
-        await connections[session_id].send_json(data)
+# API endpoints (已实现):
+# POST /api/push       — 接收 SDK 推送的指标数据
+# WS   /ws/{id}        — WebSocket 实时转发给 Dashboard
+# GET  /api/sessions   — 列出活跃 sessions
+# GET  /api/health     — 健康检查
 ```
 
-### 5.5 report.py — 离线报告
+### 5.5 report.py — 离线 HTML 报告 ✅ 已实现
 
-推理结束后生成独立 HTML 文件，内嵌 ECharts 数据，无需服务器即可打开。
+推理结束后生成自包含 HTML 文件，嵌入 ECharts CDN，无需服务器即可打开。
 
 ```python
-def generate_report(session_data: list[dict], meta: dict, output_path: str) -> str:
+def generate_report(
+    steps: list[dict],
+    meta: dict[str, Any],
+    output_path: str | Path,
+) -> str:
     """
     将所有 step 数据写入 HTML 模板。
 
     包含：
-    - 完整热力图（可交互，可缩放）
-    - 每层冗余度统计（平均 relative_delta 排名）
-    - 推理耗时 + overhead 统计
-    - 生成文本全文
+    - 交互式热力图（ECharts heatmap，hover 显示详细指标）
+    - Prediction Entropy 曲线图
+    - 每层冗余度统计表（avg delta/cosim/sparsity 排名）
+    - 生成文本全文显示
+    - XSS 防护：_safe_json() 转义 </script>
     """
+```
+
+### 5.6 __main__.py — CLI 入口 ✅ 已实现
+
+```python
+# python -m univis serve --host 0.0.0.0 --port 8765
+# python -m univis report <jsonl_path> -o output.html
+
+def main() -> None:
+    """argparse 解析 serve 和 report 两个子命令。"""
+    # serve: 调用 uvicorn.run('univis.server:app', ...)
+    # report: 读取 JSONL → 提取 steps/meta → generate_report()
 ```
 
 ## 6. Dashboard 设计
@@ -458,11 +475,12 @@ def generate_report(session_data: list[dict], meta: dict, output_path: str) -> s
 ### 6.2 组件结构
 
 ```
-App
+App ✅ 已实现
 ├── ConnectionBar        # WebSocket 连接状态 + session 选择
 ├── MainView
-│   ├── HeatmapView      # 动态热力图（核心）
-│   └── TokenList        # 已生成 token 序列
+│   ├── HeatmapView      # 动态热力图（核心），丰富 Tooltip
+│   ├── TokenList        # 已生成 token 序列
+│   └── LayerFilter      # 层选择过滤器（多选框，All/None 快捷按钮）
 ├── StatsPanel           # 实时统计（平均冗余、总 token、VRAM）
 └── ControlBar           # 开始/暂停/重置
 ```
@@ -531,9 +549,16 @@ const option = {
 | GPT-2 原始推理 (100 token) | ~300 ms | CPU 上 |
 | 开销占比 | ~1% | |
 
-> 以上为估算值，**必须在 Phase 0 用实测数据验证**。
+> 以上为估算值。真实模型实测见下方。
 
-### 7.2 风险点
+### 7.2 真实模型实测数据
+
+| 模型 | 硬件 | 配置 | 结果 |
+|------|------|------|------|
+| Qwen2.5-0.5B-Instruct | L20 GPU | 24 层 × 50 步 | 50 tokens ~8s（含模型加载），overhead 可接受 |
+| sshleifer/tiny-gpt2 | CPU (WSL) | 12 层 × 100 步 | Hook 开销 ~45.8%（最差情况，模型极小导致拷贝占比高） |
+
+### 7.3 风险点
 
 - **大模型**：hidden_dim 增大 → GPU→CPU 拷贝变慢 → 可能需要只拷贝部分数据（采样或降精度）
 - **KV Cache 场景**：decode 阶段只处理 1 个 token，tensor 形状是 [1, 1, dim]，拷贝量小
@@ -543,21 +568,22 @@ const option = {
 
 ```
 univis/
-├── pyproject.toml              # 包定义 + 依赖
+├── pyproject.toml              # 包定义 + 依赖 + entry_points
 ├── PRD.md                      # 产品需求文档
 ├── ARCHITECTURE.md             # 本文件
-├── README.md                   # (后续创建)
+├── README.md                   # 英文 README（badges、quick start、metrics 表）
 │
 ├── src/
 │   └── univis/
 │       ├── __init__.py         # attach(), 公开 API
-│       ├── tracker.py          # Tracker 类（用户交互入口）
-│       ├── probe.py            # ModelProbe（hook 注册 + 缓冲）
-│       ├── metrics.py          # 指标计算函数
-│       ├── transport.py        # Transport 基类 + File/WebSocket 实现
-│       ├── server.py           # FastAPI WebSocket 服务
-│       ├── report.py           # HTML 报告生成
-│       └── detection.py        # 自动检测模型结构
+│       ├── __main__.py         # CLI 入口：serve / report ✅
+│       ├── tracker.py          # Tracker 类（用户交互入口）✅
+│       ├── probe.py            # ModelProbe（hook 注册 + 缓冲）✅
+│       ├── metrics.py          # 指标计算函数（支持 batch 聚合）✅
+│       ├── transport.py        # Transport 基类 + File/HttpPush/Multi ✅
+│       ├── server.py           # FastAPI WebSocket 服务 ✅
+│       ├── report.py           # ECharts HTML 报告生成 ✅
+│       └── detection.py        # 自动检测模型结构 ✅
 │
 ├── dashboard/
 │   ├── package.json
@@ -565,24 +591,27 @@ univis/
 │   ├── tsconfig.json
 │   └── src/
 │       ├── main.tsx
-│       ├── App.tsx
+│       ├── App.tsx              # 主框架：连接管理、session 选择、导出报告
 │       ├── components/
-│       │   ├── HeatmapView.tsx  # 动态热力图
+│       │   ├── HeatmapView.tsx  # ECharts 热力图（丰富 Tooltip）
 │       │   ├── TokenList.tsx    # Token 序列
 │       │   ├── StatsPanel.tsx   # 统计面板
-│       │   └── ConnectionBar.tsx
-│       ├── hooks/
-│       │   └── useWebSocket.ts  # WebSocket hook
-│       └── types.ts             # 消息类型定义
+│       │   └── LayerFilter.tsx  # 层过滤器（多选框）✅ 新增
+│       └── types.ts             # TypeScript 类型定义
 │
 ├── examples/
-│   ├── gpt2_basic.py            # 最简 demo（CPU 可运行）
-│   └── qwen_basic.py            # Qwen2.5-0.5B demo（需 GPU）
+│   ├── gpt2_basic.py            # tiny-gpt2 手动推理循环 demo
+│   ├── qwen_basic.py            # Qwen2.5-0.5B benchmark（L20）
+│   ├── qwen_generate.py         # Qwen2.5-0.5B + model.generate() + logits_processor
+│   └── verify_features.py       # 三功能验证脚本
 │
-├── tests/
-│   ├── test_metrics.py          # 指标计算单元测试
-│   ├── test_probe.py            # Hook 注册测试
-│   └── test_transport.py        # 传输层测试
+├── tests/                       # 51 tests across 6 test files
+│   ├── test_metrics.py          # 18 tests：基础指标 + batch 聚合
+│   ├── test_probe.py            # 6 tests：检测、hook、transport
+│   ├── test_report.py           # 9 tests：数据提取、HTML 生成、XSS
+│   ├── test_server.py           # 6 tests：health、push、sessions
+│   ├── test_tracker.py          # 6 tests：logits_processor、报告集成
+│   └── test_integration.py      # 6 tests：端到端 SDK→JSONL→report
 │
 └── reports/
     └── .gitkeep                 # 生成的报告存放目录
@@ -674,3 +703,29 @@ python examples/gpt2_basic.py
 | 前端图表 | D3 vs ECharts | ECharts | 热力图和矩形树图开箱即用，中文文档好 |
 | Prefill 处理 | 采集 vs 跳过 | 跳过 | Prefill tensor 大，开销高，且不是分析重点 |
 | 包管理 | setup.py vs pyproject.toml | pyproject.toml (src layout) | 现代标准，避免 import 混乱 |
+| SDK→Server 通信 | WebSocket 直连 vs HTTP POST | HTTP POST | SDK 端无需维护长连接，更简单可靠 ✅ |
+| generate() 集成 | 继承 LogitsProcessor vs 闭包 | 闭包（鸭子类型） | 不依赖 transformers 库 ✅ |
+| Batch 聚合策略 | 全局 norm vs per-item→mean | per-item→mean | batch=1 数值完全一致，batch>1 语义正确 ✅ |
+| 报告格式 | Jinja2 模板 vs f-string 拼接 | f-string + ECharts CDN | HTML 自包含，无外部文件依赖，Jinja2 不需要 ✅ |
+
+## 12. 测试覆盖
+
+### 12.1 测试概况
+
+51 个测试，分布在 6 个测试文件中，覆盖 SDK 全链路。
+
+| 文件 | 测试数 | 覆盖范围 |
+|------|--------|---------|
+| test_metrics.py | 18 | 基础指标计算（relative_delta/cosine_sim/sparsity/entropy）+ batch>1 聚合 |
+| test_probe.py | 6 | 模型检测、hook 注册、step buffer flush |
+| test_report.py | 9 | 数据提取、HTML 生成、XSS 防护（`</script>` 转义） |
+| test_server.py | 6 | 健康检查、POST push、session 列表 |
+| test_tracker.py | 6 | logits_processor 集成、报告生成集成 |
+| test_integration.py | 6 | 端到端：SDK attach → on_step → JSONL → report → HTML |
+
+### 12.2 运行测试
+
+```bash
+pip install -e ".[dev]"
+pytest tests/ -v
+```

@@ -151,7 +151,7 @@ class Tracker:
             'num_layers': self._num_layers,
         }
         out_path = Path(output_dir) / f'univis_report_{self._session_id[:8]}.html'
-        generate_report(self._all_steps, meta, out_path)
+        generate_report(self._all_steps, meta, out_path, offline=True)
         return out_path
 
 
