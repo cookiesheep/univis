@@ -13,15 +13,16 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
 import json
+import logging
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
+logger = logging.getLogger(__name__)
 
 # Session -> list of subscribed WebSocket connections
 _subscribers: dict[str, list[WebSocket]] = {}
@@ -31,8 +32,14 @@ _history: dict[str, list[dict]] = {}
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
+    for ws_list in _subscribers.values():
+        for ws in ws_list:
+            try:
+                await ws.close(code=1001, reason='server shutdown')
+            except Exception:
+                pass
     _subscribers.clear()
     _history.clear()
 
@@ -50,11 +57,25 @@ app.add_middleware(
 
 
 @app.post('/api/push/{session_id}')
-async def push_data(session_id: str, data: dict[str, Any]) -> dict[str, str]:
+async def push_data(session_id: str, request: Request) -> JSONResponse:
     """Receive metric data from SDK and broadcast to subscribers."""
-    _history.setdefault(session_id, []).append(data)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={'error': 'invalid JSON body'},
+        )
 
-    payload = json.dumps(data, ensure_ascii=False)
+    if not isinstance(body, dict):
+        return JSONResponse(
+            status_code=400,
+            content={'error': 'request body must be a JSON object'},
+        )
+
+    _history.setdefault(session_id, []).append(body)
+
+    payload = json.dumps(body, ensure_ascii=False)
     dead: list[WebSocket] = []
 
     for ws in _subscribers.get(session_id, []):
@@ -66,7 +87,7 @@ async def push_data(session_id: str, data: dict[str, Any]) -> dict[str, str]:
     for ws in dead:
         _subscribers.get(session_id, []).remove(ws)
 
-    return {'status': 'ok'}
+    return JSONResponse(status_code=200, content={'status': 'ok'})
 
 
 # ── WebSocket Subscribe (Server → Dashboard) ───────────────
@@ -90,6 +111,8 @@ async def ws_subscribe(websocket: WebSocket, session_id: str) -> None:
             await websocket.receive_text()  # keep-alive
     except WebSocketDisconnect:
         pass
+    except Exception:
+        logger.debug('WebSocket error for session %s', session_id)
     finally:
         subs = _subscribers.get(session_id, [])
         if websocket in subs:
@@ -97,6 +120,12 @@ async def ws_subscribe(websocket: WebSocket, session_id: str) -> None:
 
 
 # ── Health / Info ───────────────────────────────────────────
+
+
+@app.get('/api/health')
+async def health() -> dict[str, Any]:
+    """Health check endpoint."""
+    return {'status': 'ok', 'sessions': len(_subscribers)}
 
 
 @app.get('/api/sessions')
