@@ -7,9 +7,9 @@ Transformer 推理冗余诊断与可视化工具。
 ```
 src/univis/       # Python SDK（pip install -e .）
 src/univis/server.py  # FastAPI WebSocket 服务
-dashboard/        # React + ECharts 前端
+dashboard/        # React + ECharts 前端（DM Sans + JetBrains Mono 字体）
 examples/         # 可运行示例
-tests/            # 单元测试（19 tests）
+tests/            # 单元测试（67 tests）
 ```
 
 ## 开发命令
@@ -17,11 +17,11 @@ tests/            # 单元测试（19 tests）
 ```bash
 # SDK
 pip install -e ".[dev]"         # 开发模式安装
-pytest tests/                   # 跑测试（19 tests）
+pytest tests/                   # 跑测试（67 tests）
 python examples/gpt2_basic.py   # 小模型 demo
 
 # Server
-python -m univis.server         # 启动 WebSocket 服务（:8765）
+python -m univis serve          # 启动 WebSocket 服务（:8765）
 
 # Dashboard
 cd dashboard/ && npm install    # 安装依赖
@@ -60,5 +60,6 @@ python examples/gpt2_basic.py
 - WSL Ubuntu（douban_crawler conda env）
 - `HF_ENDPOINT=https://hf-mirror.com`（国内 HuggingFace 镜像）
 - 代理：`export http_proxy=http://$(ip route show default | awk '{print $3}'):7897`
-- 模型：`sshleifer/tiny-gpt2`（Phase 0 验证通过）
-- L20 服务器：Qwen2.5-0.5B（待跑 `examples/qwen_basic.py`）
+- 模型：`sshleifer/tiny-gpt2`（测试用，5MB）
+- L20 服务器：Qwen2.5-0.5B/3B/7B 全部验证通过
+- SSH L20：`ssh L20_public`，GPU 4-7 空闲（各 48GB）
