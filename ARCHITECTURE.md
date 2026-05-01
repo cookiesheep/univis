@@ -404,13 +404,21 @@ class FileTransport(Transport):
         self.file.close()
 
 
-class WebSocketTransport(Transport):
-    """通过 WebSocket 推送。用于连接 Dashboard。"""
-    def __init__(self, uri: str): ...
-    async def send(self, message: dict) -> None:
-        await self.ws.send(json.dumps(message))
-    async def close(self) -> None:
-        await self.ws.close()
+class HttpPushTransport(Transport):
+    """通过 HTTP POST 推送到 UniVis server。"""
+    def __init__(self, base_url: str, session_id: str): ...
+    def send(self, message: dict) -> None:
+        urllib.request.urlopen(req, timeout=5)
+    def close(self) -> None: ...
+
+
+class MultiTransport(Transport):
+    """支持同时写入多个 transport。"""
+    def __init__(self, transports: list[Transport]): ...
+    def send(self, message: dict) -> None:
+        for t in self._transports: t.send(message)
+    def close(self) -> None:
+        for t in self._transports: t.close()
 ```
 
 ### 5.4 server.py — WebSocket 服务 ✅ 已实现

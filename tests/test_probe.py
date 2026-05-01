@@ -46,6 +46,20 @@ class TestDetection:
         model = FakeGPT2(n_layers=6)
         assert get_layer_count(model, 'transformer.h.') == 6
 
+    def test_detects_llama_prefix(self) -> None:
+        class FakeLLaMA(nn.Module):
+            def __init__(self, n_layers: int = 3) -> None:
+                super().__init__()
+                self.model = nn.Module()
+                self.model.layers = nn.ModuleList([
+                    nn.Linear(16, 16) for _ in range(n_layers)
+                ])
+
+        model = FakeLLaMA(n_layers=3)
+        prefixes = detect_block_prefixes(model)
+        assert 'model.layers.' in prefixes
+        assert get_layer_count(model, 'model.layers.') == 3
+
 
 class TestProbe:
     def test_registers_correct_hooks(self) -> None:
@@ -77,6 +91,26 @@ class TestProbe:
         assert probe.num_hooks == 2
         probe.remove_hooks()
         assert probe.num_hooks == 0
+
+
+class TestMultiTransport:
+    def test_fan_out_to_multiple_transports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path1 = Path(tmpdir) / 'out1.jsonl'
+            path2 = Path(tmpdir) / 'out2.jsonl'
+            t1 = FileTransport(path1)
+            t2 = FileTransport(path2)
+
+            from univis.transport import MultiTransport
+            multi = MultiTransport([t1, t2])
+            multi.send({'test': 1})
+            multi.close()
+
+            import json
+            msg1 = json.loads(path1.read_text().strip())
+            msg2 = json.loads(path2.read_text().strip())
+            assert msg1 == {'test': 1}
+            assert msg2 == {'test': 1}
 
 
 class TestFileTransport:

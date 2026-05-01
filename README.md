@@ -99,7 +99,7 @@ Relative Delta is the primary heatmap metric. Because Transformers use residual 
 src/univis/       # Python SDK (pip install -e .)
 dashboard/        # React + ECharts frontend
 examples/         # Runnable examples
-tests/            # Unit tests (45 tests)
+tests/            # Unit tests (67 tests)
 ```
 
 ## License

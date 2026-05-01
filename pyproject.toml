@@ -36,6 +36,8 @@ univis = "univis.__main__:main"
 dev = [
     "pytest",
     "transformers",
+    "starlette",
+    "websockets",
 ]
 server = [
     "fastapi>=0.100",

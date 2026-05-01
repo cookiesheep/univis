@@ -1,8 +1,7 @@
-"""Transport layer: send metrics to file or WebSocket."""
+"""Transport layer: send metrics to file or push to server."""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -42,51 +41,6 @@ class FileTransport(Transport):
     @property
     def path(self) -> Path:
         return self._path
-
-
-class WebSocketTransport(Transport):
-    """Send messages via WebSocket.
-
-    Note: This is a placeholder. The actual WebSocket connection is managed
-    by the server module. Messages are silently dropped until connect() is called.
-    """
-
-    def __init__(self, uri: str = 'ws://127.0.0.1:8765') -> None:
-        self._uri = uri
-        self._ws: Any = None
-        self._connected = False
-
-    def connect(self, ws: Any) -> None:
-        """Set the active WebSocket connection."""
-        self._ws = ws
-        self._connected = True
-
-    def send(self, message: dict[str, Any]) -> None:
-        if self._ws is None:
-            return  # Not connected yet, message dropped silently
-        payload = json.dumps(message)
-
-        async def _send() -> None:
-            await self._ws.send(payload)
-
-        try:
-            loop = asyncio.get_running_loop()
-            task = loop.create_task(_send())
-            task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
-        except RuntimeError:
-            asyncio.run(_send())
-
-    def close(self) -> None:
-        if self._ws is not None:
-
-            async def _close() -> None:
-                await self._ws.close()
-
-            try:
-                asyncio.run(_close())
-            except Exception:
-                pass
-        self._connected = False
 
 
 class HttpPushTransport(Transport):

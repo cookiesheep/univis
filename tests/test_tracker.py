@@ -137,3 +137,16 @@ class TestReportIntegration:
 
             report_path = tracker.finish()
             assert str(tmpdir) in report_path
+
+
+class TestRemove:
+    def test_remove_cleans_up_hooks(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = _make_tracker(tmpdir)
+            assert tracker._finished is False
+            assert tracker._probe.num_hooks > 0
+
+            tracker.remove()
+
+            assert tracker._finished is True
+            assert tracker._probe.num_hooks == 0
