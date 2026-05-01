@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
-import { SessionState, ServerMessage, StepMessage } from './types'
+import { SessionState, ServerMessage } from './types'
 import HeatmapView from './components/HeatmapView'
 import TokenList from './components/TokenList'
 import StatsPanel from './components/StatsPanel'
@@ -85,11 +85,83 @@ ${rows}
 </body></html>`
 }
 
+const inputStyle: React.CSSProperties = {
+  padding: '8px 12px', borderRadius: 4, border: '1px solid #333',
+  background: '#16213e', color: '#e0e0e0', fontSize: 14, width: 240,
+}
+
+const connectBtnStyle = (connected: boolean): React.CSSProperties => ({
+  padding: '8px 16px', borderRadius: 4, border: 'none',
+  background: connected ? '#e74c3c' : '#0f3460',
+  color: '#fff', cursor: 'pointer', fontSize: 14,
+})
+
+const exportBtnStyle: React.CSSProperties = {
+  padding: '8px 16px', borderRadius: 4, border: '1px solid #64ffda',
+  background: 'transparent', color: '#64ffda', cursor: 'pointer', fontSize: 14,
+}
+
+function HeroState({
+  sessionId,
+  onSessionIdChange,
+  onConnect,
+}: {
+  sessionId: string
+  onSessionIdChange: (v: string) => void
+  onConnect: () => void
+}) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      minHeight: 'calc(100vh - 80px)', textAlign: 'center', animation: 'fadeIn 0.6s ease-out',
+    }}>
+      <h1 style={{ color: '#64ffda', fontSize: 48, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.5px' }}>
+        UniVis
+      </h1>
+      <p style={{ color: '#8892b0', fontSize: 16, marginBottom: 16 }}>
+        Transformer Inference Redundancy Diagnostic
+      </p>
+      <p style={{ color: '#8892b0', fontSize: 14, maxWidth: 440, marginBottom: 40, lineHeight: 1.6 }}>
+        Real-time visualization of layer-level inference metrics.
+        Connect to a UniVis server to begin.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          value={sessionId}
+          onChange={e => onSessionIdChange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onConnect()}
+          placeholder="Session ID"
+          style={inputStyle}
+        />
+        <button onClick={onConnect} style={connectBtnStyle(false)}>
+          Connect
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function WaitingState() {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      minHeight: 'calc(100vh - 80px)', animation: 'fadeIn 0.4s ease-out',
+    }}>
+      <div style={{
+        width: 10, height: 10, borderRadius: '50%', background: '#64ffda',
+        animation: 'pulse 1.5s ease-in-out infinite', marginBottom: 16,
+      }} />
+      <p style={{ color: '#8892b0', fontSize: 15 }}>Waiting for inference data...</p>
+    </div>
+  )
+}
+
 export default function App() {
   const [sessionId, setSessionId] = useState('')
   const [connected, setConnected] = useState(false)
   const [state, setState] = useState<SessionState>(EMPTY_STATE)
   const [selectedLayers, setSelectedLayers] = useState<Set<number>>(new Set<number>())
+  const [highlightedTokenIndex, setHighlightedTokenIndex] = useState<number | null>(null)
 
   const handleMessage = useCallback((msg: ServerMessage) => {
     setState(prev => {
@@ -110,6 +182,7 @@ export default function App() {
     if (!sessionId.trim()) return
     setState(EMPTY_STATE)
     setSelectedLayers(new Set<number>())
+    setHighlightedTokenIndex(null)
     const ws = connect()
     ws.onopen = () => setConnected(true)
     ws.onclose = () => setConnected(false)
@@ -119,12 +192,10 @@ export default function App() {
   const numLayers = sessionStart?.num_layers ?? 0
   const layerNames = sessionStart?.layer_names ?? []
 
-  // Initialize selectedLayers when session starts
   const effectiveLayerNames = layerNames.length > 0
     ? layerNames
     : Array.from({ length: numLayers }, (_, i) => `Layer ${i}`)
 
-  // Auto-select all layers when first step arrives and selection is empty
   const effectiveSelectedLayers = useMemo(() => {
     if (effectiveLayerNames.length > 0 && selectedLayers.size === 0) {
       return new Set(effectiveLayerNames.map((_, i) => i))
@@ -174,8 +245,38 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
+  const hasData = steps.length > 0
+
+  // Hero state: not connected
+  if (!connected) {
+    return (
+      <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
+        <HeroState
+          sessionId={sessionId}
+          onSessionIdChange={setSessionId}
+          onConnect={handleConnect}
+        />
+      </div>
+    )
+  }
+
+  // Waiting state: connected but no data yet
+  if (!hasData) {
+    return (
+      <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+          <button onClick={disconnect} style={connectBtnStyle(true)}>
+            Disconnect
+          </button>
+        </div>
+        <WaitingState />
+      </div>
+    )
+  }
+
+  // Full dashboard
   return (
-    <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto', animation: 'fadeIn 0.5s ease-out' }}>
       <h1 style={{ color: '#64ffda', marginBottom: 8 }}>UniVis Dashboard</h1>
 
       {/* Connection Bar */}
@@ -185,32 +286,17 @@ export default function App() {
           onChange={e => setSessionId(e.target.value)}
           placeholder="Session ID"
           onKeyDown={e => e.key === 'Enter' && handleConnect()}
-          style={{
-            padding: '8px 12px', borderRadius: 4, border: '1px solid #333',
-            background: '#16213e', color: '#e0e0e0', fontSize: 14, width: 240,
-          }}
+          style={inputStyle}
         />
         <button
           onClick={connected ? disconnect : handleConnect}
-          style={{
-            padding: '8px 16px', borderRadius: 4, border: 'none',
-            background: connected ? '#e74c3c' : '#0f3460',
-            color: '#fff', cursor: 'pointer', fontSize: 14,
-          }}
+          style={connectBtnStyle(connected)}
         >
           {connected ? 'Disconnect' : 'Connect'}
         </button>
-        {steps.length > 0 && (
-          <button
-            onClick={handleExport}
-            style={{
-              padding: '8px 16px', borderRadius: 4, border: '1px solid #64ffda',
-              background: 'transparent', color: '#64ffda', cursor: 'pointer', fontSize: 14,
-            }}
-          >
-            Export Report
-          </button>
-        )}
+        <button onClick={handleExport} style={exportBtnStyle}>
+          Export Report
+        </button>
         {sessionStart && (
           <span style={{ color: '#8892b0', fontSize: 13 }}>
             {sessionStart.model_name} | {sessionStart.num_layers} layers | {sessionStart.project}
@@ -224,26 +310,45 @@ export default function App() {
       </div>
 
       {/* Stats */}
-      {steps.length > 0 && <StatsPanel steps={steps} />}
+      <StatsPanel steps={steps} />
 
       {/* Layer Filter */}
-      {steps.length > 0 && (
-        <LayerFilter
-          layerNames={effectiveLayerNames}
-          selectedLayers={effectiveSelectedLayers}
-          onToggle={handleToggleLayer}
-          onSelectAll={handleSelectAll}
-          onDeselectAll={handleDeselectAll}
-        />
-      )}
+      <LayerFilter
+        layerNames={effectiveLayerNames}
+        selectedLayers={effectiveSelectedLayers}
+        onToggle={handleToggleLayer}
+        onSelectAll={handleSelectAll}
+        onDeselectAll={handleDeselectAll}
+      />
 
       {/* Heatmap */}
       {filteredSteps.length > 0 && filteredLayerNames.length > 0 && (
-        <HeatmapView steps={filteredSteps} numLayers={filteredLayerNames.length} layerNames={filteredLayerNames} />
+        <HeatmapView
+          steps={filteredSteps}
+          numLayers={filteredLayerNames.length}
+          layerNames={filteredLayerNames}
+          highlightedTokenIndex={highlightedTokenIndex}
+        />
       )}
 
       {/* Token List */}
-      {steps.length > 0 && <TokenList steps={steps} />}
+      <TokenList
+        steps={steps}
+        highlightedTokenIndex={highlightedTokenIndex}
+        onTokenClick={setHighlightedTokenIndex}
+      />
+
+      {/* Global keyframe styles */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.4; transform: scale(0.9); }
+          50% { opacity: 1; transform: scale(1.1); }
+        }
+      `}</style>
     </div>
   )
 }
