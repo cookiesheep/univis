@@ -16,6 +16,7 @@ from typing import Any
 import torch.nn as nn
 
 from .tracker import Tracker, create_tracker
+from .pilot import Pilot, PilotPolicy
 
 
 def attach(
@@ -53,4 +54,4 @@ def attach(
     )
 
 
-__all__ = ['attach', 'Tracker']
+__all__ = ['attach', 'Tracker', 'Pilot', 'PilotPolicy']

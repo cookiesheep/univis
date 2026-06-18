@@ -103,6 +103,12 @@ class Tracker:
         report_path = self._generate_report(output_dir or self._output_dir)
         return str(report_path)
 
+    @property
+    def layer_summary(self) -> list[dict]:
+        """Per-layer average metrics across all recorded steps (for Pilot policy)."""
+        from .report import _build_layer_summary
+        return _build_layer_summary(self._all_steps)
+
     def remove(self) -> None:
         """Remove hooks without generating report (for cleanup on error)."""
         if not self._finished:
