@@ -1,70 +1,120 @@
+<div align="center">
+
 # UniVis
 
-**Open-source observability for Transformer inference — see which layers compute, and which are redundant.**
+**面向 Transformer 推理的开源观测工具 —— 看清哪些层在计算、哪些层在冗余。**
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-80-brightgreen.svg)](tests)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-> Read this in: [简体中文](README.zh-CN.md)
+[English](README.en.md) · 简体中文
 
-UniVis is a lightweight diagnostic toolkit that attaches to any PyTorch / HuggingFace Transformer and visualizes per-layer behavior during inference. By computing compact metrics on the fly through `forward` hooks, it produces dynamic heatmaps and standalone reports that make *"where is compute actually happening — and where is it being wasted"* immediately legible.
+</div>
 
-It is a **measurement & visualization** tool. It does not modify, prune, or accelerate your model — it gives you the evidence to decide what to optimize, and offers an experimental path to act on it.
+<img src="docs/images/dashboard.png" alt="UniVis Dashboard" width="100%">
 
-## Why
+UniVis 是一个轻量级推理诊断工具包，可附着在任意 PyTorch / HuggingFace Transformer 上，对推理过程中每一层的行为进行可视化。它通过 `forward` hook 在**端侧**实时计算紧凑指标，输出动态热力图与可独立打开的报告，让「计算究竟发生在哪里、又浪费在哪里」一目了然。
 
-Transformer inference is expensive, and not every layer or generation step contributes equally. Existing tools tend to look elsewhere:
+UniVis 是**度量与可视化**工具——它不修改、不剪枝、不加速你的模型，而是给出判断「该优化什么」的依据，并提供一条可实验的干预路径。
 
-- **TensorBoard / W&B** track training-time scalars (loss, learning rate) and treat the network as a black box at inference time.
-- **BertViz** explains attention semantics, not runtime compute cost.
-- **NVIDIA Nsight / profilers** operate at the GPU-operator level — powerful, but hard to map back to *"which Transformer layer."*
+---
 
-UniVis fills the missing semantic layer: **per-layer, per-token redundancy during inference**, transmitted as just a few KB per step.
+## ✨ 效果展示
 
-## Features
+<table>
+<tr>
+<td width="50%" align="center"><b>实时 Dashboard</b></td>
+<td width="50%" align="center"><b>模型 MRI · 同心环</b></td>
+</tr>
+<tr>
+<td width="50%" align="center"><img src="docs/images/dashboard.png" alt="dashboard"></td>
+<td width="50%" align="center"><img src="docs/images/report-mri.png" alt="model MRI"></td>
+</tr>
+<tr>
+<td width="50%" align="center"><sub>热力图随 token 生成从左到右动态生长（plasma 配色：暗=冗余，亮=活跃）</sub></td>
+<td width="50%" align="center"><sub>每一层画成同心环，橙色=活跃、灰绿色=冗余，一眼定位「摸鱼层」</sub></td>
+</tr>
+<tr>
+<td width="50%" align="center"><b>层级脉冲 + 数据河流</b></td>
+<td width="50%" align="center"><b>多模型对比报告</b></td>
+</tr>
+<tr>
+<td width="50%" align="center"><img src="docs/images/report-pulse.png" alt="layer pulse"></td>
+<td width="50%" align="center"><img src="docs/images/report-comparison.png" alt="comparison"></td>
+</tr>
+<tr>
+<td width="50%" align="center"><sub>每层一个迷你波形：平线=冗余、尖峰=活跃；ThemeRiver 展示活跃度随 token 流动</sub></td>
+<td width="50%" align="center"><sub><code>univis compare</code> 横向比较多个模型的冗余分布</sub></td>
+</tr>
+</table>
 
-- **Zero-intrusion hooks** — no changes to the target model; attach and run.
-- **Edge-computed metrics** — tensors are reduced to scalars inside the hook, so each step's payload is ~1–2 KB with negligible inference overhead.
-- **5 core metrics** — relative delta, cosine similarity, activation sparsity, prediction entropy, VRAM delta.
-- **Architecture auto-detection** — GPT-2, LLaMA / Mistral / Mixtral, Qwen (1.5 / 2 / 2.5 / 3), BERT family.
-- **Three output modes** — JSONL log, standalone offline HTML report, real-time WebSocket dashboard.
-- **`model.generate()` integration** — plugs in via a HuggingFace `LogitsProcessor`, no manual loop changes.
-- **Rich reports** — model-MRI rings, layer-pulse sparklines, ThemeRiver data-river, plasma heatmap, redundancy ranking with trend annotations.
-- **Multi-model comparison** — `univis compare` cross-model redundancy CLI with radar charts and tables.
-- **Pilot intervention (experimental)** — threshold-based early-exit during generation, with quantitative perplexity impact.
+<div align="center">
 
-## How it works
+**跨规模实证：中间层冗余最显著，且在 0.5B → 27B 上稳定成立**
+
+<img src="docs/images/cross-scale.png" alt="cross-scale redundancy" width="92%">
+
+<sub>Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B（参数跨度约 54 倍，覆盖 Dense 与 hybrid 架构）。把每层深度归一化到 [0,1] 后，四个模型的中间段余弦相似度都明显高于浅层与深层。</sub>
+
+</div>
+
+---
+
+## 为什么需要 UniVis
+
+Transformer 推理成本高昂，但并非每一层、每一个生成步骤贡献都相同。现有工具往往看向别处：
+
+- **TensorBoard / W&B** 关注训练期标量（loss、学习率），在推理期把网络当黑盒。
+- **BertViz** 解释的是注意力语义，而非运行时算力开销。
+- **NVIDIA Nsight / 各类 profiler** 停留在 GPU 算子级——强大，却难以回溯到「具体哪一层」。
+
+UniVis 填补的是这一缺失的语义层：**推理期逐层、逐 token 的冗余**，每步只传输几 KB。
+
+## 核心特性
+
+- **零侵入 hook** —— 不改动目标模型，挂上即用。
+- **端侧计算（边缘计算）** —— 张量在 hook 内部就地降维为标量，单步负载仅约 1–2 KB，对推理速度影响可忽略。
+- **5 项核心指标** —— Relative Delta、层间余弦相似度、激活稀疏度、预测熵、显存变化。
+- **架构自动识别** —— GPT-2、LLaMA / Mistral / Mixtral、Qwen（1.5 / 2 / 2.5 / 3）、BERT 系列。
+- **三种输出模式** —— JSONL 日志、自包含离线 HTML 报告、实时 WebSocket Dashboard。
+- **`model.generate()` 集成** —— 通过 HuggingFace `LogitsProcessor` 接入，无需改动生成循环。
+- **丰富的报告** —— 模型 MRI 同心环、层级脉冲、数据河流、plasma 热力图、带趋势标注的冗余排名。
+- **多模型对比** —— `univis compare` 跨模型冗余对比 CLI，含雷达图与对比表。
+- **Pilot 干预（实验性）** —— 基于阈值的生成提前终止，并定量评估对 perplexity 的影响。
+
+## 工作原理
 
 ```
-your model
+你的模型
     │  univis.attach(model)
     ▼
 ┌──────────────────────── univis SDK ───────────────────────┐
 │  detection → probe (forward_hook) → metrics → transport    │
-│           (auto-detect)  (per-layer)   (scalar)  (JSONL/HTTP)│
+│           (自动识别)   (逐层)        (标量)    (JSONL/HTTP)  │
 │                                                            │
-│   metrics computed at the edge ── only KB of JSON emitted  │
+│   指标在端侧算好 ── 只输出 KB 级 JSON                       │
 └───────────────────────────┬────────────────────────────────┘
                             │ HTTP POST → WebSocket
                             ▼
-                  React + ECharts dashboard
-                  (live heatmap · stats · filters)
+                  React + ECharts Dashboard
+                  （实时热力图 · 统计 · 过滤）
                             │
                             ▼  tracker.finish()
-                  standalone HTML report
+                  可独立打开的 HTML 报告
 ```
 
-The design principle is **edge computing**: high-dimensional activations are reduced to scalar metrics right inside the hook, so monitoring never blocks inference.
+核心设计是**边缘计算**：高维激活在 hook 内部就地降维为标量指标，监控永远不会阻塞推理。
 
-## Quick start
+## 快速开始
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-### Pattern A — Minimal (SDK only, offline report)
+### 方式 A —— 最简（仅 SDK，离线报告）
 
 ```python
 import univis
@@ -72,10 +122,10 @@ import univis
 tracker = univis.attach(model, transport="file")
 for token_id in generate_loop():
     tracker.on_step(token_id)
-report_path = tracker.finish()   # → standalone HTML report
+report_path = tracker.finish()   # → 自包含 HTML 报告
 ```
 
-### Pattern B — `model.generate()` integration
+### 方式 B —— `model.generate()` 集成
 
 ```python
 tracker = univis.attach(model)
@@ -84,72 +134,73 @@ output = model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
 tracker.finish()
 ```
 
-### Pattern C — Real-time dashboard
+### 方式 C —— 实时 Dashboard
 
 ```bash
-python -m univis serve              # terminal 1: WebSocket server
-cd dashboard && npm run dev         # terminal 2: dashboard (:5173)
-python your_script.py               # terminal 3: inference with transport="websocket"
+python -m univis serve              # 终端 1：WebSocket 服务
+cd dashboard && npm run dev         # 终端 2：Dashboard（:5173）
+python your_script.py               # 终端 3：以 transport="websocket" 运行推理
 ```
 
-## CLI
+## 命令行
 
 ```bash
-python -m univis serve --port 8765               # start the WebSocket server
-python -m univis report data.jsonl -o out.html    # render an HTML report from JSONL
-python -m univis compare a.jsonl b.jsonl -o c.html  # cross-model comparison
+python -m univis serve --port 8765                # 启动 WebSocket 服务
+python -m univis report data.jsonl -o out.html     # 由 JSONL 渲染 HTML 报告
+python -m univis compare a.jsonl b.jsonl -o c.html # 跨模型对比
 ```
 
-## Metrics
+## 指标
 
-| Metric | Formula | Meaning |
+| 指标 | 公式 | 含义 |
 |---|---|---|
-| Relative Delta | `‖output − input‖₂ / ‖input‖₂` | How much the representation changed at this layer |
-| Cosine Similarity | `cos(input, output)` | Directional alignment between input and output |
-| Activation Sparsity | `count(|x| < ε) / total` | Fraction of near-zero activations |
-| Prediction Entropy | `H(softmax(logits))` | Model uncertainty at this step |
-| VRAM Delta | `Δ torch.cuda.memory_allocated()` | Memory pressure introduced by this step |
+| Relative Delta | `‖output − input‖₂ / ‖input‖₂` | 该层对表示的改变幅度（热力图主指标） |
+| Cosine Similarity | `cos(input, output)` | 输入输出方向一致性 |
+| Activation Sparsity | `count(|x| < ε) / total` | 近零激活比例 |
+| Prediction Entropy | `H(softmax(logits))` | 该步模型的犹豫程度 |
+| VRAM Delta | `Δ torch.cuda.memory_allocated()` | 该步引入的显存压力 |
 
-Relative Delta is the primary heatmap metric. Because Transformers use residual connections, cosine similarity saturates above 0.9 and blurs inter-layer differences; Relative Delta directly measures *"how much this layer changed"* and is far more sensitive to redundancy in residual architectures.
+Relative Delta 是热力图主指标。由于 Transformer 采用残差连接，余弦相似度普遍饱和在 0.9 以上，层间差异被模糊；Relative Delta 直接度量「这层改了多少」，对残差架构里的冗余更敏感。
 
-## Supported models
+## 支持模型
 
-| Architecture | Variants |
+| 架构 | 变体 |
 |---|---|
 | GPT-2 | gpt2, gpt2-medium, gpt2-large, gpt2-xl |
 | LLaMA | LLaMA 1/2/3, Mistral, Mixtral |
 | Qwen | Qwen 1.5, Qwen 2, Qwen 2.5, Qwen 3 |
 | BERT | BERT, RoBERTa, ALBERT, DeBERTa |
 
-Architectures are auto-detected from the model config — no manual registration. Verified on Qwen2.5-0.5B / 3B / 7B and Qwen3-27B-class hybrid models.
+架构由模型 config 自动识别，无需手动注册。已在 Qwen2.5-0.5B / 3B / 7B 与 Qwen3-27B 级 hybrid 模型上完成验证（参数跨度约 54 倍）。
 
-## Roadmap
+## 路线图
 
-- **Pilot early-exit** — turn measurement into action: exit generation when the model is confident enough, with explicit *quality (perplexity) ↔ speedup* tradeoff curves. (Naive layer-skipping was found to harm quality, so the focus is confidence-based early-exit.)
-- **Domestic-accelerator adaptation** — validate hooks and metrics on domestic AI compute (e.g. the MXMACA software stack), so redundancy diagnostics work across NVIDIA and domestic GPUs.
-- **DiT / video generation** — monitor temporal redundancy across denoising steps and enable time-step-level early stop.
-- **Sub-layer granularity** — drill from Transformer block down to Attention and FFN.
-- **Redundancy–quality study** — empirical correlation between UniVis metrics and downstream quality loss after pruning / layer-skip.
+- **Pilot 提前终止** —— 把度量变成行动：当模型足够确信时提前结束生成，并给出明确的「质量（perplexity）↔ 加速」权衡曲线。（实测简单跳层会损害质量，因此聚焦于基于置信度的提前终止。）
+- **国产算力适配** —— 在国产 AI 算力（如 MXMACA 软件栈）上验证 hook 与指标采集，使冗余诊断跨 NVIDIA 与国产 GPU 通用。
+- **DiT / 视频生成** —— 监控去噪步之间的时序冗余，实现 time-step 级提前终止。
+- **子层粒度** —— 从 Transformer Block 下钻到 Attention 与 FFN。
+- **冗余—质量关联研究** —— UniVis 指标与剪枝/跳层后质量损失的实证关联。
 
-## Architecture & testing
+## 架构与测试
 
-Full module design, data model, and API in [ARCHITECTURE.md](ARCHITECTURE.md); scope and motivation in [PRD.md](PRD.md). The SDK is covered by **80 unit tests** across 9 files (metrics, probe, report, server, tracker, pilot, integration, three-end).
+完整模块设计、数据模型与 API 见 [ARCHITECTURE.md](ARCHITECTURE.md)；范围与动机见 [PRD.md](PRD.md)。SDK 由 **80 个单元测试**（9 个文件）覆盖全链路。
 
 ```
-src/univis/      Python SDK — attach() → on_step() → finish()
-dashboard/       React 18 + TypeScript + ECharts frontend
-examples/        runnable examples
-tests/           80 unit tests
+src/univis/      Python SDK —— attach() → on_step() → finish()
+dashboard/       React 18 + TypeScript + ECharts 前端
+docs/images/     报告与图表样例
+examples/        可运行示例
+tests/           80 个单元测试
 ```
 
-## Contributing
+## 参与贡献
 
-Contributions are welcome — new metric plugins, model adapters, dashboard views, and benchmarks are all useful. See [CONTRIBUTING.md](CONTRIBUTING.md). The metric functions in `metrics.py` are pure and independently testable, which makes adding a new metric low-risk.
+欢迎贡献——新的指标插件、模型适配、Dashboard 视图与 benchmark 都有价值，参见 [CONTRIBUTING.md](CONTRIBUTING.md)。`metrics.py` 中的指标函数是纯函数、可独立测试，新增指标的风险很低。
 
-## License
+## 许可证
 
-[MIT](LICENSE).
+[MIT](LICENSE)。
 
-## Acknowledgements
+## 鸣谢
 
-Computing resources and technical discussions from the AI Systems research group at Sun Yat-sen University. Built on PyTorch, FastAPI, React, and ECharts.
+感谢中山大学 AI Systems 研究组提供的算力资源与技术讨论。本项目基于 PyTorch、FastAPI、React、ECharts 构建。
