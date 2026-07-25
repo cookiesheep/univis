@@ -10,3 +10,16 @@ node_modules/
 dashboard/dist/
 .omc/
 .env
+
+# internal / personal docs (kept local, not published)
+CLAUDE.md
+开发进度与规划.md
+
+# scratch & analysis artifacts
+/*.html
+/run_*.py
+/run_*.sh
+/screenshot.py
+/gen_*.py
+/analyze_redundancy.py
+/*this-session*.txt

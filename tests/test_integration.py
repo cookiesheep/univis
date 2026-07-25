@@ -237,10 +237,10 @@ class TestReportContent:
             # Entropy data
             assert 'entropyData' in html
 
-            # Layer summary table
-            assert 'summary-table' in html
+            # Layer summary (treemap + layerSummary data)
+            assert 'treemap' in html
+            assert 'layerSummary' in html
             assert 'Avg RelDelta' in html
-            assert 'Avg CosSim' in html
 
             # Token list
             assert 'token-display' in html
