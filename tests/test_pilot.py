@@ -173,3 +173,34 @@ def test_early_exit_invalid_eos_id_is_safe():
         proc = pilot.logits_processor(eos_token_id=bad_eos)
         out = proc(None, peaked)  # must not raise IndexError
         assert out.shape == peaked.shape
+
+
+def test_early_exit_window_requires_consecutive_low_steps():
+    """entropy_window=3: two low steps don't exit, third does; high resets."""
+    model = _FakeModel(2)
+    pilot = Pilot(model, PilotPolicy(entropy_threshold=0.5, entropy_window=3))
+    proc = pilot.logits_processor(eos_token_id=0)
+    peaked = torch.full((1, 10), -100.0)
+    peaked[0, 3] = 100.0
+    uniform = torch.zeros(1, 10)
+
+    assert not torch.isinf(proc(None, peaked)).any()  # streak 1
+    assert not torch.isinf(proc(None, peaked)).any()  # streak 2
+    assert not torch.isinf(proc(None, uniform)).any()  # reset
+    assert not torch.isinf(proc(None, peaked)).any()  # streak 1
+    assert not torch.isinf(proc(None, peaked)).any()  # streak 2
+    out = proc(None, peaked)  # streak 3 -> EOS
+    assert out[0, 0].item() == 0.0
+    assert pilot.early_exit_count == 1
+
+
+def test_early_exit_window_default_matches_naive():
+    """entropy_window=1 fires on the first low-entropy step (legacy behavior)."""
+    model = _FakeModel(2)
+    pilot = Pilot(model, PilotPolicy(entropy_threshold=0.5, entropy_window=1))
+    proc = pilot.logits_processor(eos_token_id=0)
+    peaked = torch.full((1, 10), -100.0)
+    peaked[0, 3] = 100.0
+    out = proc(None, peaked)
+    assert out[0, 0].item() == 0.0
+    assert pilot.early_exit_count == 1

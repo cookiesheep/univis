@@ -49,11 +49,17 @@ class PilotPolicy:
 
     skip_layers is snapshot-at-apply: mutating it after Pilot.apply() has no
     effect on already-patched layers.
+
+    entropy_window: consecutive low-entropy steps required before forcing EOS.
+    1 = fire on the first low-entropy step (naive). Chat models emit ultra-
+    confident tokens at answer openings, so a window > 1 is usually needed to
+    exit on completion rather than on the opening.
     """
 
     skip_layers: set[int] = field(default_factory=set)
     entropy_threshold: float = 0.1
     early_exit_enabled: bool = True
+    entropy_window: int = 1
 
     @classmethod
     def from_layer_summary(
@@ -159,11 +165,15 @@ class Pilot:
         """Return a logits processor that forces EOS on low-entropy steps.
 
         Validated for greedy + multinomial sampling. Beam search NOT supported.
+        With policy.entropy_window > 1, EOS is forced only after that many
+        consecutive steps below the threshold.
         """
         policy = self._policy
         pilot = self
+        streak = 0
 
         def processor(input_ids, scores):
+            nonlocal streak
             if not policy.early_exit_enabled or eos_token_id is None:
                 return scores
             if eos_token_id < 0 or eos_token_id >= scores.shape[-1]:
@@ -172,10 +182,15 @@ class Pilot:
                 probs = torch.softmax(scores.float(), dim=-1)
                 entropy = -(probs * (probs + 1e-9).log()).sum(dim=-1)
                 if entropy.mean().item() < policy.entropy_threshold:
-                    pilot.early_exit_count += 1
-                    masked = scores.new_full(scores.shape, float('-inf'))
-                    masked[:, eos_token_id] = 0.0
-                    return masked
+                    streak += 1
+                    if streak >= policy.entropy_window:
+                        pilot.early_exit_count += 1
+                        streak = 0
+                        masked = scores.new_full(scores.shape, float('-inf'))
+                        masked[:, eos_token_id] = 0.0
+                        return masked
+                else:
+                    streak = 0
             return scores
 
         return processor

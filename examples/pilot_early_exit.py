@@ -26,6 +26,7 @@ from univis import Pilot, PilotPolicy
 
 MODEL = os.environ.get('UNIVIS_MODEL', 'Qwen/Qwen2.5-7B-Instruct')
 THRESHOLDS = [float(t) for t in os.environ.get('UNIVIS_THRESHOLDS', '0.05,0.1,0.2,0.5,1.0,2.0').split(',')]
+WINDOW = int(os.environ.get('UNIVIS_WINDOW', '1'))
 MAX_NEW_TOKENS = int(os.environ.get('UNIVIS_MAX_NEW', '128'))
 OUT_PATH = os.environ.get('UNIVIS_OUT', 'early_exit_results.json')
 
@@ -93,7 +94,8 @@ def main() -> None:
     # 2. sweep thresholds
     rows = []
     for th in THRESHOLDS:
-        policy = PilotPolicy(skip_layers=set(), entropy_threshold=th, early_exit_enabled=True)
+        policy = PilotPolicy(skip_layers=set(), entropy_threshold=th,
+                             early_exit_enabled=True, entropy_window=WINDOW)
         pilot = Pilot(model, policy)
         lens, kept, stops, prefix_ok = [], [], 0, 0
         wall = 0.0
@@ -126,6 +128,7 @@ def main() -> None:
     result = {
         'model': MODEL,
         'max_new_tokens': MAX_NEW_TOKENS,
+        'entropy_window': WINDOW,
         'num_prompts': len(PROMPTS),
         'baseline': {'avg_new_tokens': sum(base_lens) / len(base_lens), 'wall_s': base_wall, 'token_lens': base_lens},
         'sweep': rows,
