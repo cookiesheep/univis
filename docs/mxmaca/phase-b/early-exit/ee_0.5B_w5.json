@@ -1,0 +1,130 @@
+{
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "max_new_tokens": 128,
+  "entropy_window": 5,
+  "num_prompts": 8,
+  "baseline": {
+    "avg_new_tokens": 101.125,
+    "wall_s": 18.67573000304401,
+    "token_lens": [
+      128,
+      128,
+      11,
+      128,
+      128,
+      128,
+      128,
+      30
+    ]
+  },
+  "sweep": [
+    {
+      "threshold": 0.05,
+      "avg_new_tokens": 101.125,
+      "avg_kept_ratio": 1.0,
+      "early_stop_rate": 0.0,
+      "prefix_intact_rate": 1.0,
+      "wall_s": 18.37508622650057,
+      "token_lens": [
+        128,
+        128,
+        11,
+        128,
+        128,
+        128,
+        128,
+        30
+      ]
+    },
+    {
+      "threshold": 0.1,
+      "avg_new_tokens": 92.0,
+      "avg_kept_ratio": 0.9287109375,
+      "early_stop_rate": 0.125,
+      "prefix_intact_rate": 0.875,
+      "wall_s": 16.633332532830536,
+      "token_lens": [
+        128,
+        128,
+        11,
+        128,
+        128,
+        55,
+        128,
+        30
+      ]
+    },
+    {
+      "threshold": 0.2,
+      "avg_new_tokens": 92.0,
+      "avg_kept_ratio": 0.9287109375,
+      "early_stop_rate": 0.125,
+      "prefix_intact_rate": 0.875,
+      "wall_s": 16.496601570397615,
+      "token_lens": [
+        128,
+        128,
+        11,
+        128,
+        128,
+        55,
+        128,
+        30
+      ]
+    },
+    {
+      "threshold": 0.5,
+      "avg_new_tokens": 92.0,
+      "avg_kept_ratio": 0.9287109375,
+      "early_stop_rate": 0.125,
+      "prefix_intact_rate": 0.875,
+      "wall_s": 16.512344176881015,
+      "token_lens": [
+        128,
+        128,
+        11,
+        128,
+        128,
+        55,
+        128,
+        30
+      ]
+    },
+    {
+      "threshold": 1.0,
+      "avg_new_tokens": 63.0,
+      "avg_kept_ratio": 0.7021484375,
+      "early_stop_rate": 0.375,
+      "prefix_intact_rate": 0.625,
+      "wall_s": 11.356389564462006,
+      "token_lens": [
+        17,
+        128,
+        11,
+        128,
+        128,
+        19,
+        43,
+        30
+      ]
+    },
+    {
+      "threshold": 2.0,
+      "avg_new_tokens": 34.375,
+      "avg_kept_ratio": 0.4161931818181818,
+      "early_stop_rate": 0.875,
+      "prefix_intact_rate": 0.125,
+      "wall_s": 6.2048823069781065,
+      "token_lens": [
+        14,
+        82,
+        5,
+        112,
+        5,
+        5,
+        22,
+        30
+      ]
+    }
+  ]
+}
