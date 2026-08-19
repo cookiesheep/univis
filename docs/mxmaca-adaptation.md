@@ -2,7 +2,7 @@
 
 UniVis 的国产算力适配目标：在沐曦 MetaX 曦云 C500 + MXMACA 软件栈上验证 hook 指标采集通路与跨规模冗余基线，使冗余诊断跨 NVIDIA 与国产 GPU 通用。本页是 [README](../README.md) 中国产算力一节的展开版，随各阶段推进持续更新。
 
-> **状态速览（2026-08）**：NVIDIA L20 与 CPU 已验证；MetaX 曦云 C500 处于**计划中**——本页描述的是目标与判据，尚未有 C500 实测数据。任何「已验证」表述只会在数据真实产生后出现。
+> **状态速览（2026-08-19）**：NVIDIA L20 与 CPU 已验证；**MetaX 曦云 C500 阶段 A 已完成**——Qwen2.5-0.5B 在 C500（sGPU 切分实例）上完整生成，24 层指标全量采集，报告/JSONL/环境指纹已存档于 [phase-a/](mxmaca/phase-a/README.md)。阶段 B（跨规模基线）计划中。
 
 ## 为什么 UniVis 天然可移植
 
@@ -19,15 +19,16 @@ UniVis 的国产算力适配目标：在沐曦 MetaX 曦云 C500 + MXMACA 软件
 |---|---|---|---|
 | NVIDIA L20（48GB） | NVIDIA GPU | ✅ 已验证 | Qwen2.5-0.5B / 3B / 7B + 27B 级 hybrid 完整诊断（约 54× 参数跨度） |
 | CPU（无 GPU） | — | ✅ 已验证 | 全量 80 项单元测试、离线报告渲染 |
-| MetaX 曦云 C500（64GB HBM2e） | 沐曦 GPU + MXMACA | 🔄 计划中（阶段 A → B） | — |
+| MetaX 曦云 C500（sGPU 切分实例） | 沐曦 GPU + MXMACA | ✅ 阶段 A 已验证 | Qwen2.5-0.5B-Instruct 完整生成 + 报告 + JSONL + 指纹（[证据](mxmaca/phase-a/README.md)） |
 
 ## 阶段判据
 
-### 阶段 A —— 通路验证（目标环境：单卡 C500 + 官方 MACA 镜像）
+### 阶段 A —— 通路验证（目标环境：单卡 C500 + 官方 MACA 镜像）✅ 已完成（2026-08-19）
 
 - 在 C500 上 `pip install -e .`（使用 MXMACA 适配版 torch，**不要**用公版 torch 覆盖）
 - Qwen2.5-0.5B（FP16/BF16）完整生成一次，`transport="file"` 全程采集
 - **完成判据**：产出标准 HTML 报告 + JSONL 留档 + 环境指纹（见下）
+- **实际执行**：模力方舟「曦云 C500 + PyTorch 2.8.0」官方镜像实例（torch 2.8.0+metax3.3.0.2 / MACA 3.3.0.15），零代码修改直接运行，3 提示词 × 128 token × 24 层全量采集。复现步骤与全部产物见 [phase-a/README.md](mxmaca/phase-a/README.md)。非交互 SSH 需 `export MACA_PATH=/opt/maca`（交互登录时镜像自动注入）。
 
 ### 阶段 B —— 跨规模基线
 

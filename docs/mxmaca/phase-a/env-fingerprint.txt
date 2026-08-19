@@ -1,0 +1,48 @@
+UniVis Phase A environment fingerprint
+=======================================
+date_utc: 2026-08-19T14:55:25Z
+gpu_and_driver:
+mx-smi  version: 2.2.9
+
+=================== MetaX System Management Interface Log ===================
+Timestamp                                         : Wed Aug 19 14:55:25 2026
+
+Attached GPUs                                     : 1
++---------------------------------------------------------------------------------+
+| MX-SMI 2.2.9                       Kernel Mode Driver Version: 3.8.30           |
+| MACA Version: 3.3.0.15             BIOS Version: 1.33.5.0                       |
+|------------------+-----------------+---------------------+----------------------|
+| Board       Name | GPU   Persist-M | Bus-id              | GPU-Util      sGPU-M |
+| Pwr:Usage/Cap    | Temp       Perf | Memory-Usage        | GPU-State            |
+|==================+=================+=====================+======================|
+| 0     MetaX C500 | 0           Off | 0000:36:00.0        | 0%           Enabled |
+| 57W / 350W       | 36C          P0 | 858/65536 MiB       | Available            |
++------------------+-----------------+---------------------+----------------------+
+
++---------------------------------------------------------------------------------+
+| Sliced GPU                                                                      |
+|------------------------------------+---------------------+----------------------|
+| Minor    GPU    sGPU-Id    Compute | Vram Quota          | sGPU-Util            |
+|====================================+=====================+======================|
+| 010      0      2          25%     | 0/16000 MiB         | 0%                   |
++------------------------------------+---------------------+----------------------+
+
++---------------------------------------------------------------------------------+
+| Process:                                                                        |
+|  GPU                    PID         Process Name                 GPU Memory     |
+|                                                                  Usage(MiB)     |
+|=================================================================================|
+|  no process found                                                               |
++---------------------------------------------------------------------------------+
+
+End of Log
+
+software:
+  torch: 2.8.0+metax3.3.0.2
+  python: 3.10.10
+  transformers: 4.57.3
+  maca_toolkit: maca-3.3.0 (MACA_PATH=/opt/maca)
+workload:
+  model: Qwen/Qwen2.5-0.5B-Instruct
+  dtype: bfloat16, greedy decoding, max_new_tokens=128, 3 Chinese prompts
+  instance: MetaX C500 slice (16GB VRAM quota of 64GB physical, 25% compute)

@@ -84,13 +84,13 @@ UniVis 的实现天然面向跨硬件移植，以下事实逐条可查证：
 |---|---|---|---|
 | NVIDIA L20（48GB） | NVIDIA GPU | ✅ **已验证** | Qwen2.5-0.5B / 3B / 7B + 27B 级 hybrid 完整诊断（跨约 54× 参数跨度） |
 | CPU（无 GPU） | — | ✅ **已验证** | 全量 80 项单元测试、离线报告渲染 |
-| MetaX 曦云 C500（64GB HBM2e） | 沐曦 GPU + MXMACA 软件栈 | 🔄 **计划中**（阶段 A → B） | 见下方阶段化路线图 |
+| MetaX 曦云 C500（sGPU 切分实例） | 沐曦 GPU + MXMACA 软件栈 | ✅ **阶段 A 已验证**（阶段 B 计划中） | Qwen2.5-0.5B-Instruct 完整生成 + HTML 报告 + JSONL + 环境指纹，[证据存档](docs/mxmaca/phase-a/README.md) |
 
 ### 阶段化路线图
 
 | 阶段 | 目标 | 完成判据 | 状态 |
 |---|---|---|---|
-| A | 曦云 C500 指标采集通路验证 | Qwen2.5-0.5B 完整生成一次，产出 HTML 报告 + JSONL 留档 + 环境指纹（MXMACA / mcPyTorch 精确版本 + `mx-smi` 输出） | 计划中 |
+| A | 曦云 C500 指标采集通路验证 | Qwen2.5-0.5B 完整生成一次，产出 HTML 报告 + JSONL 留档 + 环境指纹（MXMACA / mcPyTorch 精确版本 + `mx-smi` 输出） | ✅ **已完成（2026-08-19）**，[证据](docs/mxmaca/phase-a/README.md) |
 | B | C500 跨规模冗余基线 | 0.5B / 3B / 7B 基线报告 + 与 NVIDIA L20 同模型同提示词的对比表 | 计划中 |
 | C | 诊断结果反哺沐曦生态 | 以冗余定位结论作为 FlagGems / mcTriton 算子优化的输入示例 | 规划中 |
 
@@ -100,14 +100,14 @@ UniVis 的实现天然面向跨硬件移植，以下事实逐条可查证：
 |---|---|
 | 已实测模型 | Qwen2.5-0.5B / 3B / 7B-Instruct（bf16）、Qwen3.6-27B（hybrid） |
 | 自动识别架构 | GPT-2 系；LLaMA 系（LLaMA 1/2/3、Mistral、Mixtral）；Qwen 系（1.5 / 2 / 2.5 / 3）；BERT 系（BERT、RoBERTa、ALBERT、DeBERTa） |
-| 软件栈 | Python ≥ 3.10、PyTorch ≥ 2.0、HuggingFace transformers |
+| 软件栈 | NVIDIA 栈：Python ≥ 3.10、PyTorch ≥ 2.0、HF transformers（L20 实测）；沐曦栈：torch 2.8.0+metax3.3.0.2、MACA 3.3.0.15、transformers 4.57.3（C500 阶段 A 实测） |
 | 硬件 | NVIDIA GPU（CUDA）与 CPU 已验证；沐曦 MXMACA 适配按阶段推进（见上） |
 
 **范围声明：**以上验证仅限所列模型与架构，冗余结论不外推到未测模型——这恰恰是 UniVis 的价值：在新模型上跑一次诊断，得到它自己的冗余画像，再谈优化。
 
 ### 无卡可审计
 
-UniVis 的全部诊断产出——JSONL 原始数据、自包含 HTML 报告、环境指纹——都可在**无 GPU 环境**直接打开复核。诊断工具本身就是证据链：C500 验证结果将连同数据与指纹一并公开发布，任何人无需租卡即可审计。
+UniVis 的全部诊断产出——JSONL 原始数据、自包含 HTML 报告、环境指纹——都可在**无 GPU 环境**直接打开复核。诊断工具本身就是证据链：C500 阶段 A 的完整证据（数据、报告、指纹）已发布于 [docs/mxmaca/phase-a/](docs/mxmaca/phase-a/README.md)，任何人无需租卡即可审计。
 
 我们期待与沐曦及 MXMACA 社区在测试资源、技术指导与生态联动上展开合作。适配详情与环境指纹规范见 [docs/mxmaca-adaptation.md](docs/mxmaca-adaptation.md)。
 

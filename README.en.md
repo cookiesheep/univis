@@ -84,13 +84,13 @@ UniVis's implementation is inherently portable across hardware — every claim b
 |---|---|---|---|
 | NVIDIA L20 (48GB) | NVIDIA GPU | ✅ **verified** | full diagnostics on Qwen2.5-0.5B / 3B / 7B + 27B-class hybrid (~54× parameter span) |
 | CPU (no GPU) | — | ✅ **verified** | full 80-test suite, offline report rendering |
-| MetaX Xiyun C500 (64GB HBM2e) | MetaX GPU + MXMACA stack | 🔄 **planned** (phase A → B) | see staged roadmap below |
+| MetaX Xiyun C500 (sGPU slice instance) | MetaX GPU + MXMACA stack | ✅ **phase A verified** (phase B planned) | full Qwen2.5-0.5B-Instruct generation + HTML report + JSONL + environment fingerprint, [evidence archive](docs/mxmaca/phase-a/README.md) |
 
 ### Staged roadmap
 
 | Phase | Goal | Completion criterion | Status |
 |---|---|---|---|
-| A | metric-collection pipeline on Xiyun C500 | one full Qwen2.5-0.5B generation producing an HTML report + archived JSONL + environment fingerprint (exact MXMACA / mcPyTorch versions + `mx-smi` output) | planned |
+| A | metric-collection pipeline on Xiyun C500 | one full Qwen2.5-0.5B generation producing an HTML report + archived JSONL + environment fingerprint (exact MXMACA / mcPyTorch versions + `mx-smi` output) | ✅ **completed (2026-08-19)**, [evidence](docs/mxmaca/phase-a/README.md) |
 | B | cross-scale redundancy baseline on C500 | baseline reports for 0.5B / 3B / 7B + a same-model, same-prompt comparison table vs. NVIDIA L20 | planned |
 | C | feed diagnostics back into the MetaX ecosystem | use redundancy findings as input to FlagGems / mcTriton operator optimization | exploratory |
 
@@ -100,14 +100,14 @@ UniVis's implementation is inherently portable across hardware — every claim b
 |---|---|
 | Models tested | Qwen2.5-0.5B / 3B / 7B-Instruct (bf16), Qwen3.6-27B (hybrid) |
 | Auto-detected architectures | GPT-2 family; LLaMA family (LLaMA 1/2/3, Mistral, Mixtral); Qwen family (1.5 / 2 / 2.5 / 3); BERT family (BERT, RoBERTa, ALBERT, DeBERTa) |
-| Software stack | Python ≥ 3.10, PyTorch ≥ 2.0, HuggingFace transformers |
+| Software stack | NVIDIA: Python ≥ 3.10, PyTorch ≥ 2.0, HF transformers (tested on L20); MetaX: torch 2.8.0+metax3.3.0.2, MACA 3.3.0.15, transformers 4.57.3 (tested in C500 phase A) |
 | Hardware | NVIDIA GPU (CUDA) and CPU verified; MetaX MXMACA adaptation in progress (see above) |
 
 **Scope statement:** verification covers only the models and architectures listed above; redundancy findings do not extrapolate to untested models. That is precisely UniVis's value — run one diagnostic on a new model and get *its own* redundancy profile before optimizing anything.
 
 ### Auditable without a GPU
 
-Everything UniVis produces — raw JSONL, self-contained HTML reports, environment fingerprints — can be reviewed on a machine with **no GPU at all**. The diagnostic tool is itself the evidence chain: C500 validation results will be published together with their data and fingerprints, auditable by anyone without renting a card.
+Everything UniVis produces — raw JSONL, self-contained HTML reports, environment fingerprints — can be reviewed on a machine with **no GPU at all**. The diagnostic tool is itself the evidence chain: the complete C500 phase-A evidence (data, report, fingerprint) is published under [docs/mxmaca/phase-a/](docs/mxmaca/phase-a/README.md), auditable by anyone without renting a card.
 
 We look forward to collaborating with MetaX and the MXMACA community on test resources, technical guidance, and ecosystem integration. Adaptation details and fingerprint conventions: [docs/mxmaca-adaptation.md](docs/mxmaca-adaptation.md).
 

@@ -1,0 +1,22 @@
+`torch_dtype` is deprecated! Use `dtype` instead!
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+/opt/conda/lib/python3.10/site-packages/torch/nn/functional.py:5991: UserWarning: 1Torch was not compiled with memory efficient attention. (Triggered internally at /workspace/framework/mcPytorch/aten/src/ATen/native/transformers/cuda/sdp_utils.cpp:725.)
+  return _scaled_dot_product_attention(query, key, value, attn_mask, dropout_p, is_causal, scale = scale, enable_gqa = enable_gqa)
+torch: 2.8.0+metax3.3.0.2 | device: cuda MetaX C500
+model loaded: Qwen/Qwen2.5-0.5B-Instruct bf16
+--- [10.0s] 用三句话介绍 Transformer 架构的核心思想。
+    Transformer 是一种基于自注意力机制的自然语言处理（NLP）模型，它通过将输入序列分解为多个短片段，并在每个片段上执行自注意力操作来实现强大的文本理解能力。这种结构使得Transformer能够有效地捕捉到句子级别的上下文信息，从而显著提高了其在 NLP 应用中的性能和效率。此外，Transformer 还引
+--- [9.5s] 解释什么是大语言模型的推理冗余。
+    在自然语言处理领域，大语言模型（如BERT、GPT等）通常使用一种称为“注意力机制”的技术来提高其性能和效率。这种机制允许模型在处理文本时，不仅关注输入文本中的每个单词或短语，还考虑整个句子的整体结构。
+
+然而，在某些情况下，特别是当模型需要处理大量数据时，可能会出现所谓的“推理冗余”问题。推理冗余是指模型在处理复杂任
+--- [9.5s] 写一个 Python 函数计算列表的中位数。
+    在Python中，我们可以使用内置的`statistics`模块来计算列表的中位数。这个模块提供了多种方法可以计算中位数，包括排序后取中间元素等。
+
+以下是一个简单的函数，用于计算给定列表的中位数：
+
+```python
+import statistics
+
+def calculate_median(numbers):
+report saved: /data/phase-a/univis_report_3d2a1dca.html
