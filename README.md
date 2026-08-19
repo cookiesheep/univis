@@ -19,7 +19,7 @@
 
 </div>
 
-<img src="docs/images/dashboard.png" alt="UniVis Dashboard" width="100%">
+<img src="docs/images/dashboard-c500.png" alt="UniVis Dashboard" width="100%">
 
 UniVis 通过 `forward` hook 零侵入地附着在任意 PyTorch / HuggingFace Transformer 上，在**端侧（hook 内部）**把每层激活降维为标量指标（单步仅约 1–2 KB），经 JSONL / WebSocket 输出实时 Dashboard 或自包含离线 HTML 报告，回答一个问题：**推理时，哪些层在真正计算，哪些层在冗余。**
 
@@ -35,11 +35,11 @@ UniVis 是**度量与可视化**工具——不修改、不剪枝、不加速你
 <td width="50%" align="center"><b>模型 MRI · 同心环</b></td>
 </tr>
 <tr>
-<td width="50%" align="center"><img src="docs/images/dashboard.png" alt="dashboard"></td>
+<td width="50%" align="center"><img src="docs/images/dashboard-c500.png" alt="dashboard"></td>
 <td width="50%" align="center"><img src="docs/images/report-mri.png" alt="model MRI"></td>
 </tr>
 <tr>
-<td width="50%" align="center"><sub>热力图随 token 生成从左到右动态生长（plasma 配色：暗=冗余，亮=活跃）</sub></td>
+<td width="50%" align="center"><sub>Qwen2.5-7B 实时推理于沐曦曦云 C500：热力图随 token 生成从左到右动态生长（plasma：暗=冗余，亮=活跃）</sub></td>
 <td width="50%" align="center"><sub>每一层画成同心环，橙色=活跃、灰绿色=冗余，一眼定位「摸鱼层」</sub></td>
 </tr>
 <tr>

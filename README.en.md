@@ -19,7 +19,7 @@ English · [简体中文](README.md)
 
 </div>
 
-<img src="docs/images/dashboard.png" alt="UniVis Dashboard" width="100%">
+<img src="docs/images/dashboard-c500.png" alt="UniVis Dashboard" width="100%">
 
 UniVis attaches to any PyTorch / HuggingFace Transformer via zero-intrusion `forward` hooks, reduces every layer's activations to scalar metrics **at the edge (inside the hook)** — only ~1–2 KB per step — and streams them as JSONL / WebSocket into a real-time dashboard or a standalone offline HTML report. It answers one question: **at inference time, which layers actually compute, and which are redundant.**
 
@@ -35,11 +35,11 @@ UniVis is a **measurement & visualization** tool. It does not modify, prune, or 
 <td width="50%" align="center"><b>Model MRI · concentric rings</b></td>
 </tr>
 <tr>
-<td width="50%" align="center"><img src="docs/images/dashboard.png" alt="dashboard"></td>
+<td width="50%" align="center"><img src="docs/images/dashboard-c500.png" alt="dashboard"></td>
 <td width="50%" align="center"><img src="docs/images/report-mri.png" alt="model MRI"></td>
 </tr>
 <tr>
-<td width="50%" align="center"><sub>Heatmap grows left-to-right as tokens are generated (plasma: dark = redundant, bright = active)</sub></td>
+<td width="50%" align="center"><sub>Qwen2.5-7B inference live on MetaX Xiyun C500: heatmap grows left-to-right as tokens are generated (plasma: dark = redundant, bright = active)</sub></td>
 <td width="50%" align="center"><sub>Each layer as a ring — orange = active, gray-green = redundant. Spot the idle layers at a glance.</sub></td>
 </tr>
 <tr>
