@@ -1,0 +1,80 @@
+{
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "max_new_tokens": 128,
+  "entropy_window": 5,
+  "num_prompts": 24,
+  "baseline": {
+    "avg_new_tokens": 102.0,
+    "wall_s": 84.8321655606851,
+    "token_lens": [
+      72,
+      128,
+      13,
+      128,
+      128,
+      128,
+      128,
+      23,
+      19,
+      128,
+      2,
+      128,
+      128,
+      128,
+      128,
+      75,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      68,
+      128
+    ]
+  },
+  "sweep": [
+    {
+      "threshold": 0.05,
+      "avg_new_tokens": 79.75,
+      "avg_kept_ratio": 0.7920218820701358,
+      "early_stop_rate": 0.4166666666666667,
+      "wall_s": 67.0288444571197
+    },
+    {
+      "threshold": 0.1,
+      "avg_new_tokens": 70.33333333333333,
+      "avg_kept_ratio": 0.7178797252073906,
+      "early_stop_rate": 0.5,
+      "wall_s": 59.369290438480675
+    },
+    {
+      "threshold": 0.2,
+      "avg_new_tokens": 64.5,
+      "avg_kept_ratio": 0.6718467390962796,
+      "early_stop_rate": 0.5416666666666666,
+      "wall_s": 54.21720424853265
+    },
+    {
+      "threshold": 0.5,
+      "avg_new_tokens": 47.416666666666664,
+      "avg_kept_ratio": 0.5279346169557566,
+      "early_stop_rate": 0.6666666666666666,
+      "wall_s": 39.95186583325267
+    },
+    {
+      "threshold": 1.0,
+      "avg_new_tokens": 24.458333333333332,
+      "avg_kept_ratio": 0.3285345768916541,
+      "early_stop_rate": 0.875,
+      "wall_s": 20.55360237788409
+    },
+    {
+      "threshold": 2.0,
+      "avg_new_tokens": 8.541666666666666,
+      "avg_kept_ratio": 0.16959988382662614,
+      "early_stop_rate": 0.9166666666666666,
+      "wall_s": 7.339835425838828
+    }
+  ]
+}
