@@ -83,12 +83,18 @@ class ModelProbe:
         data = list(self._step_buffer)
         if data:
             metric_keys = [k for k in data[0] if k not in ('idx', 'name')]
+            tensor_keys = [k for k in metric_keys if isinstance(data[0][k], torch.Tensor)]
+            if tensor_keys:
+                # one [layers x metrics] device->host transfer -> one sync per step
+                flat = torch.stack([torch.stack([d[k] for k in tensor_keys]) for d in data])
+                on_cpu = flat.cpu().tolist()
+                for entry, row in zip(data, on_cpu):
+                    for k, v in zip(tensor_keys, row):
+                        entry[k] = v
             for key in metric_keys:
-                vals = [d[key] for d in data]
-                if isinstance(vals[0], torch.Tensor):
-                    on_cpu = torch.stack(vals).cpu()
-                    for d, v in zip(data, on_cpu.tolist()):
-                        d[key] = v
+                if key not in tensor_keys:
+                    for entry in data:
+                        entry[key] = float(entry[key])
             for entry in data:
                 entry['token_idx'] = token_index
         self._step_buffer.clear()
