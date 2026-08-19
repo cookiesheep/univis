@@ -2,12 +2,17 @@
 
 # UniVis
 
-**Open-source observability for Transformer inference — see which layers compute, and which are redundant.**
+**Find out which layers of your LLM actually compute at inference — and which are idle.**
 
+*找出大模型推理时哪些层在空转浪费算力 —— Transformer 推理冗余诊断与可视化工具*
+
+`AI Infra · LLM inference optimization & deployment`
+
+[![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-80-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-80-brightgreen.svg)](tests)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 English · [简体中文](README.md)
@@ -16,9 +21,9 @@ English · [简体中文](README.md)
 
 <img src="docs/images/dashboard.png" alt="UniVis Dashboard" width="100%">
 
-UniVis is a lightweight diagnostic toolkit that attaches to any PyTorch / HuggingFace Transformer and visualizes per-layer behavior during inference. By computing compact metrics on the fly through `forward` hooks, it produces dynamic heatmaps and standalone reports that make *"where is compute actually happening — and where is it being wasted"* immediately legible.
+UniVis attaches to any PyTorch / HuggingFace Transformer via zero-intrusion `forward` hooks, reduces every layer's activations to scalar metrics **at the edge (inside the hook)** — only ~1–2 KB per step — and streams them as JSONL / WebSocket into a real-time dashboard or a standalone offline HTML report. It answers one question: **at inference time, which layers actually compute, and which are redundant.**
 
-It is a **measurement & visualization** tool. It does not modify, prune, or accelerate your model — it gives you the evidence to decide what to optimize, plus an experimental path to act on it.
+UniVis is a **measurement & visualization** tool. It does not modify, prune, or accelerate your model — it gives you the evidence to decide what to optimize, plus an experimental path to act on it (Pilot).
 
 ---
 
@@ -51,41 +56,133 @@ It is a **measurement & visualization** tool. It does not modify, prune, or acce
 </tr>
 </table>
 
-<div align="center">
+## Why UniVis
 
-**Cross-scale finding: middle-layer redundancy is most pronounced — and holds from 0.5B → 27B**
+Transformer inference cost and memory grow explosively with parameter count, yet not every layer or generation step contributes equally — saving compute means saving money, which matters all the more when accelerator capacity is scarce. Before optimizing, you need to know where the redundancy is. Existing tools look elsewhere:
+
+| Tool | Phase | Granularity | Intrusiveness | Barrier |
+|---|---|---|---|---|
+| TensorBoard / W&B | training | macro scalars (loss, …) | instrumentation | low |
+| BertViz | inference | attention semantics | custom scripts | medium |
+| Nsight & profilers | inference | GPU operators / kernels | environment-level | high |
+| **UniVis** | **inference** | **per-layer × per-token redundancy** | **zero-intrusion hooks** | **low** |
+
+UniVis fills the missing semantic layer in between: **per-layer, per-token redundancy during inference**, at a few KB per step.
+
+## Domestic accelerators & MXMACA adaptation
+
+UniVis's implementation is inherently portable across hardware — every claim below is independently checkable:
+
+- **Pure PyTorch `forward` hooks** — no CUDA-specific API dependency whatsoever;
+- metrics computed **at the edge** (inside the hook), ~1–2 KB per step, never a new bottleneck;
+- the offline path (JSONL → HTML report) runs on **CPU only**;
+- no dependency on any GPU vendor's profiler toolchain.
+
+### Environment matrix
+
+| Environment | Hardware | Status | Verified content |
+|---|---|---|---|
+| NVIDIA L20 (48GB) | NVIDIA GPU | ✅ **verified** | full diagnostics on Qwen2.5-0.5B / 3B / 7B + 27B-class hybrid (~54× parameter span) |
+| CPU (no GPU) | — | ✅ **verified** | full 80-test suite, offline report rendering |
+| MetaX Xiyun C500 (64GB HBM2e) | MetaX GPU + MXMACA stack | 🔄 **planned** (phase A → B) | see staged roadmap below |
+
+### Staged roadmap
+
+| Phase | Goal | Completion criterion | Status |
+|---|---|---|---|
+| A | metric-collection pipeline on Xiyun C500 | one full Qwen2.5-0.5B generation producing an HTML report + archived JSONL + environment fingerprint (exact MXMACA / mcPyTorch versions + `mx-smi` output) | planned |
+| B | cross-scale redundancy baseline on C500 | baseline reports for 0.5B / 3B / 7B + a same-model, same-prompt comparison table vs. NVIDIA L20 | planned |
+| C | feed diagnostics back into the MetaX ecosystem | use redundancy findings as input to FlagGems / mcTriton operator optimization | exploratory |
+
+### Exact support contract & scope statement
+
+| Item | Current contract |
+|---|---|
+| Models tested | Qwen2.5-0.5B / 3B / 7B-Instruct (bf16), Qwen3.6-27B (hybrid) |
+| Auto-detected architectures | GPT-2 family; LLaMA family (LLaMA 1/2/3, Mistral, Mixtral); Qwen family (1.5 / 2 / 2.5 / 3); BERT family (BERT, RoBERTa, ALBERT, DeBERTa) |
+| Software stack | Python ≥ 3.10, PyTorch ≥ 2.0, HuggingFace transformers |
+| Hardware | NVIDIA GPU (CUDA) and CPU verified; MetaX MXMACA adaptation in progress (see above) |
+
+**Scope statement:** verification covers only the models and architectures listed above; redundancy findings do not extrapolate to untested models. That is precisely UniVis's value — run one diagnostic on a new model and get *its own* redundancy profile before optimizing anything.
+
+### Auditable without a GPU
+
+Everything UniVis produces — raw JSONL, self-contained HTML reports, environment fingerprints — can be reviewed on a machine with **no GPU at all**. The diagnostic tool is itself the evidence chain: C500 validation results will be published together with their data and fingerprints, auditable by anyone without renting a card.
+
+We look forward to collaborating with MetaX and the MXMACA community on test resources, technical guidance, and ecosystem integration. Adaptation details and fingerprint conventions: [docs/mxmaca-adaptation.md](docs/mxmaca-adaptation.md).
+
+## Core features
+
+- **Low-intrusion SDK** — one line, `univis.attach(model)`: detection auto-identifies the architecture from the model config, probes collect per-layer data via `forward` hooks, zero changes to the target model. 5 core metrics: relative delta, inter-layer cosine similarity, activation sparsity, prediction entropy, VRAM delta.
+- **Real-time dashboard** — React 18 + TypeScript + ECharts; the heatmap grows left-to-right as tokens are generated, with statistics panels, filters, and click interactions.
+- **Offline HTML report** — single file, zero dependencies, opens anywhere: model-MRI rings, layer-pulse sparklines, ThemeRiver, redundancy ranking with trend annotations.
+- **Multi-model comparison CLI** — `univis compare` for cross-model redundancy distributions, with radar charts and tables.
+- **Pilot intervention (experimental)** — turning measurement into action: confidence-based early-exit during generation; the negative result of the layer-skip route is fully public (below).
+- **Engineering quality** — 80 unit tests green, GitHub Actions CI, 3 CLI entry points, full type hints on Python 3.10+.
+
+## Empirical findings
+
+### 1. Middle-layer redundancy is most pronounced — and holds across scales
+
+<div align="center">
 
 <img src="docs/images/cross-scale.png" alt="cross-scale redundancy" width="92%">
 
-<sub>Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B (~54× parameter span, Dense & hybrid). With layer depth normalized to [0,1], the middle segment shows markedly higher cosine similarity than shallow/deep layers in all four models.</sub>
+<sub>Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B (hybrid), ~54× parameter span. With layer depth normalized to [0,1], the middle segment shows markedly higher cosine similarity than shallow/deep layers in all four models.</sub>
 
 </div>
 
----
+### 2. A public failure: layer-skip does not hold
 
-## Why
+Pilot v1 followed the intuition "high cosine similarity = skippable" and skipped middle redundant layers. Measured on Qwen2.5-7B (NVIDIA L20):
 
-Transformer inference is expensive, and not every layer or generation step contributes equally. Existing tools tend to look elsewhere:
+| Configuration | perplexity | Change |
+|---|---|---|
+| Baseline (all layers) | 13.81 | — |
+| Skip middle redundant layers | 105.67 | **+665%** |
 
-- **TensorBoard / W&B** track training-time scalars (loss, learning rate) and treat the network as a black box at inference.
-- **BertViz** explains attention semantics, not runtime compute cost.
-- **NVIDIA Nsight / profilers** operate at the GPU-operator level — powerful, but hard to map back to *"which Transformer layer."*
+Conclusion: saturated cosine similarity ≠ useless layer; "apparently redundant" layers in residual architectures still perform necessary refinement (full record in commit `1938d60` and `examples/pilot_perplexity.py`). Pilot has therefore pivoted to **confidence-based early-exit**: terminate generation when prediction entropy falls below a threshold — the entropy-threshold × early-stop quality/speedup tradeoff curve is being quantified now.
 
-UniVis fills the missing semantic layer: **per-layer, per-token redundancy during inference**, at just a few KB per step.
+*All experiments above ran on NVIDIA L20 (48GB); domestic-accelerator validation is tracked in the environment matrix.*
 
-## Features
+## Quick start
 
-- **Zero-intrusion hooks** — no changes to the target model; attach and run.
-- **Edge-computed metrics** — tensors reduced to scalars inside the hook; each step's payload is ~1–2 KB with negligible inference overhead.
-- **5 core metrics** — relative delta, cosine similarity, activation sparsity, prediction entropy, VRAM delta.
-- **Architecture auto-detection** — GPT-2, LLaMA / Mistral / Mixtral, Qwen (1.5 / 2 / 2.5 / 3), BERT family.
-- **Three output modes** — JSONL log, standalone offline HTML report, real-time WebSocket dashboard.
-- **`model.generate()` integration** — plugs in via a HuggingFace `LogitsProcessor`, no manual loop changes.
-- **Rich reports** — model-MRI rings, layer-pulse sparklines, ThemeRiver data-river, plasma heatmap, redundancy ranking with trend annotations.
-- **Multi-model comparison** — `univis compare` CLI with radar charts and tables.
-- **Pilot intervention (experimental)** — threshold-based early-exit during generation, with quantitative perplexity impact.
+```bash
+git clone https://github.com/cookiesheep/univis && cd univis
+pip install -e ".[dev]"
+```
 
-## How it works
+**A · Offline report (minimal)**
+
+```python
+import univis
+
+tracker = univis.attach(model, transport="file")
+for token_id in generate_loop():
+    tracker.on_step(token_id)
+report_path = tracker.finish()   # → standalone HTML report
+```
+
+**B · `model.generate()` integration**
+
+```python
+tracker = univis.attach(model)
+lp = tracker.logits_processor(tokenizer)
+output = model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
+tracker.finish()
+```
+
+**C · Real-time dashboard**
+
+```bash
+python -m univis serve              # terminal 1: WebSocket server (:8765)
+cd dashboard && npm run dev         # terminal 2: dashboard (:5173)
+python your_script.py               # terminal 3: inference with transport="websocket"
+```
+
+Three CLI entry points: `univis serve` (live server), `univis report` (JSONL → HTML), `univis compare` (multi-model comparison).
+
+## Architecture
 
 ```
 your model
@@ -106,84 +203,13 @@ your model
                   standalone HTML report
 ```
 
-The design principle is **edge computing**: high-dimensional activations are reduced to scalar metrics right inside the hook, so monitoring never blocks inference.
+Three layers: the collection SDK (detection / probe / metrics / transport / tracker / pilot), a FastAPI WebSocket server, and the React frontend. The core design is **edge computing**: high-dimensional activations are reduced to scalars right inside the hook, so monitoring never blocks inference. Full module design and APIs: [ARCHITECTURE.md](ARCHITECTURE.md); scope and motivation: [PRD.md](PRD.md).
 
-## Quick start
+## Engineering quality
 
-```bash
-pip install -e ".[dev]"
-```
-
-### Pattern A — Minimal (SDK only, offline report)
-
-```python
-import univis
-
-tracker = univis.attach(model, transport="file")
-for token_id in generate_loop():
-    tracker.on_step(token_id)
-report_path = tracker.finish()   # → standalone HTML report
-```
-
-### Pattern B — `model.generate()` integration
-
-```python
-tracker = univis.attach(model)
-lp = tracker.logits_processor(tokenizer)
-output = model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
-tracker.finish()
-```
-
-### Pattern C — Real-time dashboard
-
-```bash
-python -m univis serve              # terminal 1: WebSocket server
-cd dashboard && npm run dev         # terminal 2: dashboard (:5173)
-python your_script.py               # terminal 3: inference with transport="websocket"
-```
-
-## CLI
-
-```bash
-python -m univis serve --port 8765               # start the WebSocket server
-python -m univis report data.jsonl -o out.html    # render an HTML report from JSONL
-python -m univis compare a.jsonl b.jsonl -o c.html  # cross-model comparison
-```
-
-## Metrics
-
-| Metric | Formula | Meaning |
-|---|---|---|
-| Relative Delta | `‖output − input‖₂ / ‖input‖₂` | How much the representation changed at this layer (primary heatmap metric) |
-| Cosine Similarity | `cos(input, output)` | Directional alignment between input and output |
-| Activation Sparsity | `count(|x| < ε) / total` | Fraction of near-zero activations |
-| Prediction Entropy | `H(softmax(logits))` | Model uncertainty at this step |
-| VRAM Delta | `Δ torch.cuda.memory_allocated()` | Memory pressure introduced by this step |
-
-Relative Delta is the primary heatmap metric. Because Transformers use residual connections, cosine similarity saturates above 0.9 and blurs inter-layer differences; Relative Delta directly measures *"how much this layer changed"* and is far more sensitive to redundancy in residual architectures.
-
-## Supported models
-
-| Architecture | Variants |
-|---|---|
-| GPT-2 | gpt2, gpt2-medium, gpt2-large, gpt2-xl |
-| LLaMA | LLaMA 1/2/3, Mistral, Mixtral |
-| Qwen | Qwen 1.5, Qwen 2, Qwen 2.5, Qwen 3 |
-| BERT | BERT, RoBERTa, ALBERT, DeBERTa |
-
-Architectures are auto-detected from the model config — no manual registration. Verified on Qwen2.5-0.5B / 3B / 7B and Qwen3-27B-class hybrid models (~54× parameter span).
-
-## Roadmap
-
-- **Pilot early-exit** — turn measurement into action: exit generation when the model is confident enough, with explicit *quality (perplexity) ↔ speedup* tradeoff curves. (Naive layer-skipping was found to harm quality, so the focus is confidence-based early-exit.)
-- **Domestic-accelerator adaptation** — validate hooks and metrics on domestic AI compute (e.g. the MXMACA software stack), so redundancy diagnostics work across NVIDIA and domestic GPUs.
-- **DiT / video generation** — monitor temporal redundancy across denoising steps and enable time-step-level early stop.
-- **Sub-layer granularity** — drill from Transformer block down to Attention and FFN.
-- **Redundancy–quality study** — empirical correlation between UniVis metrics and downstream quality loss after pruning / layer-skip.
-
-## Architecture & testing
-
-Full module design, data model, and API in [ARCHITECTURE.md](ARCHITECTURE.md); scope and motivation in [PRD.md](PRD.md). The SDK is covered by **80 unit tests** across 9 files.
+- **80 unit tests** (8 test files) covering the SDK, server, report generation, the three-terminal pipeline, and Pilot — `pytest tests/` fully green;
+- **GitHub Actions CI**: every push runs the full suite on Python 3.10 / 3.12 with CPU torch;
+- full type hints on Python ≥ 3.10; 10 SDK modules; public API exported from `__init__.py`.
 
 ```
 src/univis/      Python SDK — attach() → on_step() → finish()
@@ -193,13 +219,19 @@ examples/        runnable examples
 tests/           80 unit tests
 ```
 
-## Contributing
+## Roadmap
 
-Contributions are welcome — new metric plugins, model adapters, dashboard views, and benchmarks are all useful. See [CONTRIBUTING.md](CONTRIBUTING.md). The metric functions in `metrics.py` are pure and independently testable, which makes adding a new metric low-risk.
+- **Near term** — Pilot early-exit tradeoff curves (entropy threshold × early stop → quantified quality/speedup); MetaX Xiyun C500 adaptation (phases A / B).
+- **Mid term** — deeper MXMACA validation (phase C, integrating with the FlagGems / mcTriton ecosystem); DiT / video-generation models (temporal redundancy across denoising steps); hooks drilled down to Attention / FFN sub-layers.
+- **Long term** — 70B+ and MoE models; integration with mainstream inference frameworks.
+
+## Community & collaboration
+
+UniVis is used for day-to-day diagnostics and teaching demos in our lab. A GitLink mirror is in preparation. Contributions are welcome — new metric plugins, model adapters, dashboard views, and benchmarks are all useful. See [CONTRIBUTING.md](CONTRIBUTING.md); the metric functions in `metrics.py` are pure and independently testable, which makes adding a new metric low-risk.
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE)
 
 ## Acknowledgements
 

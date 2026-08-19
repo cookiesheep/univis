@@ -2,12 +2,17 @@
 
 # UniVis
 
-**面向 Transformer 推理的开源观测工具 —— 看清哪些层在计算、哪些层在冗余。**
+**找出大模型推理时哪些层在空转浪费算力 —— Transformer 推理冗余诊断与可视化工具**
 
+*Find out which layers of your LLM actually compute at inference — and which are idle.*
+
+`AI Infra · 大模型推理优化与部署`
+
+[![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-80-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-80-brightgreen.svg)](tests)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [English](README.en.md) · 简体中文
@@ -16,9 +21,9 @@
 
 <img src="docs/images/dashboard.png" alt="UniVis Dashboard" width="100%">
 
-UniVis 是一个轻量级推理诊断工具包，可附着在任意 PyTorch / HuggingFace Transformer 上，对推理过程中每一层的行为进行可视化。它通过 `forward` hook 在**端侧**实时计算紧凑指标，输出动态热力图与可独立打开的报告，让「计算究竟发生在哪里、又浪费在哪里」一目了然。
+UniVis 通过 `forward` hook 零侵入地附着在任意 PyTorch / HuggingFace Transformer 上，在**端侧（hook 内部）**把每层激活降维为标量指标（单步仅约 1–2 KB），经 JSONL / WebSocket 输出实时 Dashboard 或自包含离线 HTML 报告，回答一个问题：**推理时，哪些层在真正计算，哪些层在冗余。**
 
-UniVis 是**度量与可视化**工具——它不修改、不剪枝、不加速你的模型，而是给出判断「该优化什么」的依据，并提供一条可实验的干预路径。
+UniVis 是**度量与可视化**工具——不修改、不剪枝、不加速你的模型，而是给出判断「该优化什么」的证据，并提供一条可实验的干预路径（Pilot）。
 
 ---
 
@@ -51,41 +56,133 @@ UniVis 是**度量与可视化**工具——它不修改、不剪枝、不加速
 </tr>
 </table>
 
-<div align="center">
+## 为什么需要 UniVis
 
-**跨规模实证：中间层冗余最显著，且在 0.5B → 27B 上稳定成立**
+Transformer 推理成本与显存随参数量暴涨，但并非每一层、每个生成步骤贡献相同——省算力就是省钱，这在国产算力资源紧张的当下尤其重要。要优化，先要知道冗余在哪里。现有工具却都看向别处：
+
+| 工具 | 观测期 | 粒度 | 侵入性 | 上手门槛 |
+|---|---|---|---|---|
+| TensorBoard / W&B | 训练期 | loss 等宏观标量 | 需埋点 | 低 |
+| BertViz | 推理期 | 注意力语义 | 需写分析脚本 | 中 |
+| Nsight 等 profiler | 推理期 | GPU 算子 / 内核 | 环境级插桩 | 高 |
+| **UniVis** | **推理期** | **逐层 × 逐 token 冗余指标** | **零侵入 hook** | **低** |
+
+UniVis 填补的是中间缺失的语义层：**推理期逐层、逐 token 的冗余度量**，每步只传输几 KB。
+
+## 国产算力与 MXMACA 适配
+
+UniVis 的实现天然面向跨硬件移植，以下事实逐条可查证：
+
+- **纯 PyTorch `forward` hook 实现**，无任何 CUDA 专有 API 依赖；
+- 指标在**端侧**（hook 内部）计算，单步负载仅 1–2 KB，不增加推理瓶颈；
+- 离线路径（JSONL → HTML 报告）**纯 CPU 可运行**；
+- 不依赖特定 GPU 厂商的 profiler 工具链。
+
+### 环境矩阵
+
+| 环境 | 硬件 | 状态 | 已验证内容 |
+|---|---|---|---|
+| NVIDIA L20（48GB） | NVIDIA GPU | ✅ **已验证** | Qwen2.5-0.5B / 3B / 7B + 27B 级 hybrid 完整诊断（跨约 54× 参数跨度） |
+| CPU（无 GPU） | — | ✅ **已验证** | 全量 80 项单元测试、离线报告渲染 |
+| MetaX 曦云 C500（64GB HBM2e） | 沐曦 GPU + MXMACA 软件栈 | 🔄 **计划中**（阶段 A → B） | 见下方阶段化路线图 |
+
+### 阶段化路线图
+
+| 阶段 | 目标 | 完成判据 | 状态 |
+|---|---|---|---|
+| A | 曦云 C500 指标采集通路验证 | Qwen2.5-0.5B 完整生成一次，产出 HTML 报告 + JSONL 留档 + 环境指纹（MXMACA / mcPyTorch 精确版本 + `mx-smi` 输出） | 计划中 |
+| B | C500 跨规模冗余基线 | 0.5B / 3B / 7B 基线报告 + 与 NVIDIA L20 同模型同提示词的对比表 | 计划中 |
+| C | 诊断结果反哺沐曦生态 | 以冗余定位结论作为 FlagGems / mcTriton 算子优化的输入示例 | 规划中 |
+
+### 精确支持契约与范围声明
+
+| 项 | 当前契约 |
+|---|---|
+| 已实测模型 | Qwen2.5-0.5B / 3B / 7B-Instruct（bf16）、Qwen3.6-27B（hybrid） |
+| 自动识别架构 | GPT-2 系；LLaMA 系（LLaMA 1/2/3、Mistral、Mixtral）；Qwen 系（1.5 / 2 / 2.5 / 3）；BERT 系（BERT、RoBERTa、ALBERT、DeBERTa） |
+| 软件栈 | Python ≥ 3.10、PyTorch ≥ 2.0、HuggingFace transformers |
+| 硬件 | NVIDIA GPU（CUDA）与 CPU 已验证；沐曦 MXMACA 适配按阶段推进（见上） |
+
+**范围声明：**以上验证仅限所列模型与架构，冗余结论不外推到未测模型——这恰恰是 UniVis 的价值：在新模型上跑一次诊断，得到它自己的冗余画像，再谈优化。
+
+### 无卡可审计
+
+UniVis 的全部诊断产出——JSONL 原始数据、自包含 HTML 报告、环境指纹——都可在**无 GPU 环境**直接打开复核。诊断工具本身就是证据链：C500 验证结果将连同数据与指纹一并公开发布，任何人无需租卡即可审计。
+
+我们期待与沐曦及 MXMACA 社区在测试资源、技术指导与生态联动上展开合作。适配详情与环境指纹规范见 [docs/mxmaca-adaptation.md](docs/mxmaca-adaptation.md)。
+
+## 核心功能
+
+- **低侵入 SDK** —— `univis.attach(model)` 一行挂载；detection 按模型 config 自动识别架构，probe 以 `forward` hook 逐层采集，无需改动目标模型。5 项核心指标：Relative Delta、层间余弦相似度、激活稀疏度、预测熵、显存变化。
+- **实时 Dashboard** —— React 18 + TypeScript + ECharts，热力图随 token 生成从左到右生长，支持统计面板、过滤与点击交互。
+- **离线 HTML 报告** —— 单文件、零依赖、可直接打开：模型 MRI 同心环、层级脉冲、ThemeRiver 数据河流、带趋势标注的冗余排名。
+- **多模型对比 CLI** —— `univis compare` 横向比较多个模型的冗余分布，含雷达图与对比表。
+- **Pilot 干预（实验性）** —— 把度量变成行动：基于预测熵的生成提前终止（early-exit）；layer-skip 路线的负结果已完整公开（见下节）。
+- **工程质量** —— 80 项单元测试全绿、GitHub Actions CI、3 个 CLI 入口、Python 3.10+ 全类型注解。
+
+## 实验发现
+
+### 1. 中间层冗余最显著，且跨规模稳定成立
+
+<div align="center">
 
 <img src="docs/images/cross-scale.png" alt="cross-scale redundancy" width="92%">
 
-<sub>Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B（参数跨度约 54 倍，覆盖 Dense 与 hybrid 架构）。把每层深度归一化到 [0,1] 后，四个模型的中间段余弦相似度都明显高于浅层与深层。</sub>
+<sub>Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B（hybrid），参数跨度约 54 倍。层深度归一化到 [0,1] 后，四个模型的中间段余弦相似度都明显高于浅层与深层。</sub>
 
 </div>
 
----
+### 2. 一次公开的失败：layer-skip 不成立
 
-## 为什么需要 UniVis
+Pilot v1 曾按「高余弦相似度 = 可跳过」的直觉跳过中间冗余层，实测（Qwen2.5-7B，NVIDIA L20）：
 
-Transformer 推理成本高昂，但并非每一层、每一个生成步骤贡献都相同。现有工具往往看向别处：
+| 配置 | perplexity | 变化 |
+|---|---|---|
+| 基线（全部层） | 13.81 | — |
+| 跳过中间冗余层 | 105.67 | **+665%** |
 
-- **TensorBoard / W&B** 关注训练期标量（loss、学习率），在推理期把网络当黑盒。
-- **BertViz** 解释的是注意力语义，而非运行时算力开销。
-- **NVIDIA Nsight / 各类 profiler** 停留在 GPU 算子级——强大，却难以回溯到「具体哪一层」。
+结论：残差架构里余弦相似度饱和 ≠ 该层无用，「看似冗余」的层仍承担必要的细化计算（完整记录见 commit `1938d60` 与 `examples/pilot_perplexity.py`）。据此 Pilot 转向**基于置信度的 early-exit**：当预测熵低于阈值时提前结束生成——「熵阈值 × 提前终止」的质量/加速权衡曲线正在量化中。
 
-UniVis 填补的是这一缺失的语义层：**推理期逐层、逐 token 的冗余**，每步只传输几 KB。
+*以上实验环境均为 NVIDIA L20（48GB）；国产卡环境验证见环境矩阵。*
 
-## 核心特性
+## 快速开始
 
-- **零侵入 hook** —— 不改动目标模型，挂上即用。
-- **端侧计算（边缘计算）** —— 张量在 hook 内部就地降维为标量，单步负载仅约 1–2 KB，对推理速度影响可忽略。
-- **5 项核心指标** —— Relative Delta、层间余弦相似度、激活稀疏度、预测熵、显存变化。
-- **架构自动识别** —— GPT-2、LLaMA / Mistral / Mixtral、Qwen（1.5 / 2 / 2.5 / 3）、BERT 系列。
-- **三种输出模式** —— JSONL 日志、自包含离线 HTML 报告、实时 WebSocket Dashboard。
-- **`model.generate()` 集成** —— 通过 HuggingFace `LogitsProcessor` 接入，无需改动生成循环。
-- **丰富的报告** —— 模型 MRI 同心环、层级脉冲、数据河流、plasma 热力图、带趋势标注的冗余排名。
-- **多模型对比** —— `univis compare` 跨模型冗余对比 CLI，含雷达图与对比表。
-- **Pilot 干预（实验性）** —— 基于阈值的生成提前终止，并定量评估对 perplexity 的影响。
+```bash
+git clone https://github.com/cookiesheep/univis && cd univis
+pip install -e ".[dev]"
+```
 
-## 工作原理
+**A · 离线报告（最简）**
+
+```python
+import univis
+
+tracker = univis.attach(model, transport="file")
+for token_id in generate_loop():
+    tracker.on_step(token_id)
+report_path = tracker.finish()   # → 自包含 HTML 报告
+```
+
+**B · `model.generate()` 集成**
+
+```python
+tracker = univis.attach(model)
+lp = tracker.logits_processor(tokenizer)
+output = model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
+tracker.finish()
+```
+
+**C · 实时 Dashboard**
+
+```bash
+python -m univis serve              # 终端 1：WebSocket 服务（:8765）
+cd dashboard && npm run dev         # 终端 2：Dashboard（:5173）
+python your_script.py               # 终端 3：transport="websocket" 运行推理
+```
+
+三个 CLI 入口：`univis serve`（实时服务）、`univis report`（JSONL → HTML）、`univis compare`（多模型对比）。
+
+## 架构
 
 ```
 你的模型
@@ -106,100 +203,35 @@ UniVis 填补的是这一缺失的语义层：**推理期逐层、逐 token 的�
                   可独立打开的 HTML 报告
 ```
 
-核心设计是**边缘计算**：高维激活在 hook 内部就地降维为标量指标，监控永远不会阻塞推理。
+三层组成：采集 SDK（detection / probe / metrics / transport / tracker / pilot）、FastAPI WebSocket 服务、React 前端。核心设计是**边缘计算**：高维激活在 hook 内部就地降维为标量，监控永不阻塞推理。完整模块设计与 API 见 [ARCHITECTURE.md](ARCHITECTURE.md)，范围与动机见 [PRD.md](PRD.md)。
 
-## 快速开始
+## 工程质量
 
-```bash
-pip install -e ".[dev]"
-```
-
-### 方式 A —— 最简（仅 SDK，离线报告）
-
-```python
-import univis
-
-tracker = univis.attach(model, transport="file")
-for token_id in generate_loop():
-    tracker.on_step(token_id)
-report_path = tracker.finish()   # → 自包含 HTML 报告
-```
-
-### 方式 B —— `model.generate()` 集成
-
-```python
-tracker = univis.attach(model)
-lp = tracker.logits_processor(tokenizer)
-output = model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
-tracker.finish()
-```
-
-### 方式 C —— 实时 Dashboard
-
-```bash
-python -m univis serve              # 终端 1：WebSocket 服务
-cd dashboard && npm run dev         # 终端 2：Dashboard（:5173）
-python your_script.py               # 终端 3：以 transport="websocket" 运行推理
-```
-
-## 命令行
-
-```bash
-python -m univis serve --port 8765                # 启动 WebSocket 服务
-python -m univis report data.jsonl -o out.html     # 由 JSONL 渲染 HTML 报告
-python -m univis compare a.jsonl b.jsonl -o c.html # 跨模型对比
-```
-
-## 指标
-
-| 指标 | 公式 | 含义 |
-|---|---|---|
-| Relative Delta | `‖output − input‖₂ / ‖input‖₂` | 该层对表示的改变幅度（热力图主指标） |
-| Cosine Similarity | `cos(input, output)` | 输入输出方向一致性 |
-| Activation Sparsity | `count(|x| < ε) / total` | 近零激活比例 |
-| Prediction Entropy | `H(softmax(logits))` | 该步模型的犹豫程度 |
-| VRAM Delta | `Δ torch.cuda.memory_allocated()` | 该步引入的显存压力 |
-
-Relative Delta 是热力图主指标。由于 Transformer 采用残差连接，余弦相似度普遍饱和在 0.9 以上，层间差异被模糊；Relative Delta 直接度量「这层改了多少」，对残差架构里的冗余更敏感。
-
-## 支持模型
-
-| 架构 | 变体 |
-|---|---|
-| GPT-2 | gpt2, gpt2-medium, gpt2-large, gpt2-xl |
-| LLaMA | LLaMA 1/2/3, Mistral, Mixtral |
-| Qwen | Qwen 1.5, Qwen 2, Qwen 2.5, Qwen 3 |
-| BERT | BERT, RoBERTa, ALBERT, DeBERTa |
-
-架构由模型 config 自动识别，无需手动注册。已在 Qwen2.5-0.5B / 3B / 7B 与 Qwen3-27B 级 hybrid 模型上完成验证（参数跨度约 54 倍）。
-
-## 路线图
-
-- **Pilot 提前终止** —— 把度量变成行动：当模型足够确信时提前结束生成，并给出明确的「质量（perplexity）↔ 加速」权衡曲线。（实测简单跳层会损害质量，因此聚焦于基于置信度的提前终止。）
-- **国产算力适配** —— 在国产 AI 算力（如 MXMACA 软件栈）上验证 hook 与指标采集，使冗余诊断跨 NVIDIA 与国产 GPU 通用。
-- **DiT / 视频生成** —— 监控去噪步之间的时序冗余，实现 time-step 级提前终止。
-- **子层粒度** —— 从 Transformer Block 下钻到 Attention 与 FFN。
-- **冗余—质量关联研究** —— UniVis 指标与剪枝/跳层后质量损失的实证关联。
-
-## 架构与测试
-
-完整模块设计、数据模型与 API 见 [ARCHITECTURE.md](ARCHITECTURE.md)；范围与动机见 [PRD.md](PRD.md)。SDK 由 **80 个单元测试**（9 个文件）覆盖全链路。
+- **80 项单元测试**（8 个测试文件）覆盖 SDK、server、报告生成、三终端链路与 Pilot，`pytest tests/` 全绿；
+- **GitHub Actions CI**：每次 push 在 Python 3.10 / 3.12 + CPU torch 上自动跑全量测试；
+- Python ≥ 3.10 全类型注解，SDK 10 个模块，公开 API 统一在 `__init__.py` 导出。
 
 ```
 src/univis/      Python SDK —— attach() → on_step() → finish()
 dashboard/       React 18 + TypeScript + ECharts 前端
 docs/images/     报告与图表样例
 examples/        可运行示例
-tests/           80 个单元测试
+tests/           80 项单元测试
 ```
 
-## 参与贡献
+## 路线图
 
-欢迎贡献——新的指标插件、模型适配、Dashboard 视图与 benchmark 都有价值，参见 [CONTRIBUTING.md](CONTRIBUTING.md)。`metrics.py` 中的指标函数是纯函数、可独立测试，新增指标的风险很低。
+- **近期** —— Pilot early-exit 权衡曲线（熵阈值 × 提前终止 → 质量/加速量化）；MetaX 曦云 C500 适配验证（阶段 A / B）。
+- **中期** —— MXMACA 验证深化（阶段 C，对接 FlagGems / mcTriton 生态）；DiT / 视频生成模型（去噪步之间的时序冗余）；hook 下钻到 Attention / FFN 子层。
+- **远期** —— 70B+ 与 MoE 模型；接入主流推理框架。
+
+## 社区与合作
+
+UniVis 已用于实验室内部日常诊断与教学演示。GitLink 镜像筹备中。欢迎贡献——新的指标插件、模型适配、Dashboard 视图与 benchmark 都有价值，参见 [CONTRIBUTING.md](CONTRIBUTING.md)；`metrics.py` 中的指标函数是纯函数、可独立测试，新增指标风险很低。
 
 ## 许可证
 
-[MIT](LICENSE)。
+[MIT](LICENSE)
 
 ## 鸣谢
 
