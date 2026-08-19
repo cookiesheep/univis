@@ -9,7 +9,7 @@
 `AI Infra · 大模型推理优化与部署`
 
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-80-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-82-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -83,15 +83,15 @@ UniVis 的实现天然面向跨硬件移植，以下事实逐条可查证：
 | 环境 | 硬件 | 状态 | 已验证内容 |
 |---|---|---|---|
 | NVIDIA L20（48GB） | NVIDIA GPU | ✅ **已验证** | Qwen2.5-0.5B / 3B / 7B + 27B 级 hybrid 完整诊断（跨约 54× 参数跨度） |
-| CPU（无 GPU） | — | ✅ **已验证** | 全量 80 项单元测试、离线报告渲染 |
-| MetaX 曦云 C500（sGPU 切分实例） | 沐曦 GPU + MXMACA 软件栈 | ✅ **阶段 A 已验证**（阶段 B 计划中） | Qwen2.5-0.5B-Instruct 完整生成 + HTML 报告 + JSONL + 环境指纹，[证据存档](docs/mxmaca/phase-a/README.md) |
+| CPU（无 GPU） | — | ✅ **已验证** | 全量 82 项单元测试、离线报告渲染 |
+| MetaX 曦云 C500（sGPU 切分实例） | 沐曦 GPU + MXMACA 软件栈 | ✅ **阶段 A + B 已验证** | Qwen2.5-0.5B / 3B / 7B 跨硬件对照（与 NVIDIA L20 画像一致性 r ≥ 0.9998），[证据存档](docs/mxmaca/phase-b/README.md) |
 
 ### 阶段化路线图
 
 | 阶段 | 目标 | 完成判据 | 状态 |
 |---|---|---|---|
 | A | 曦云 C500 指标采集通路验证 | Qwen2.5-0.5B 完整生成一次，产出 HTML 报告 + JSONL 留档 + 环境指纹（MXMACA / mcPyTorch 精确版本 + `mx-smi` 输出） | ✅ **已完成（2026-08-19）**，[证据](docs/mxmaca/phase-a/README.md) |
-| B | C500 跨规模冗余基线 | 0.5B / 3B / 7B 基线报告 + 与 NVIDIA L20 同模型同提示词的对比表 | 计划中 |
+| B | C500 跨规模冗余基线 | 0.5B / 3B / 7B 基线报告 + 与 NVIDIA L20 同模型同提示词的对比表 | ✅ **已完成（2026-08-19）**：三规模画像一致性 r ≥ 0.9998，[证据](docs/mxmaca/phase-b/README.md)（27B 需整机 C500，属后续） |
 | C | 诊断结果反哺沐曦生态 | 以冗余定位结论作为 FlagGems / mcTriton 算子优化的输入示例 | 规划中 |
 
 ### 精确支持契约与范围声明
@@ -118,7 +118,7 @@ UniVis 的全部诊断产出——JSONL 原始数据、自包含 HTML 报告、�
 - **离线 HTML 报告** —— 单文件、零依赖、可直接打开：模型 MRI 同心环、层级脉冲、ThemeRiver 数据河流、带趋势标注的冗余排名。
 - **多模型对比 CLI** —— `univis compare` 横向比较多个模型的冗余分布，含雷达图与对比表。
 - **Pilot 干预（实验性）** —— 把度量变成行动：基于预测熵的生成提前终止（early-exit）；layer-skip 路线的负结果已完整公开（见下节）。
-- **工程质量** —— 80 项单元测试全绿、GitHub Actions CI、3 个 CLI 入口、Python 3.10+ 全类型注解。
+- **工程质量** —— 82 项单元测试全绿、GitHub Actions CI、3 个 CLI 入口、Python 3.10+ 全类型注解。
 
 ## 实验发现
 
@@ -141,9 +141,23 @@ Pilot v1 曾按「高余弦相似度 = 可跳过」的直觉跳过中间冗余�
 | 基线（全部层） | 13.81 | — |
 | 跳过中间冗余层 | 105.67 | **+665%** |
 
-结论：残差架构里余弦相似度饱和 ≠ 该层无用，「看似冗余」的层仍承担必要的细化计算（完整记录见 commit `1938d60` 与 `examples/pilot_perplexity.py`）。据此 Pilot 转向**基于置信度的 early-exit**：当预测熵低于阈值时提前结束生成——「熵阈值 × 提前终止」的质量/加速权衡曲线正在量化中。
+结论：残差架构里余弦相似度饱和 ≠ 该层无用，「看似冗余」的层仍承担必要的细化计算（完整记录见 commit `1938d60` 与 `examples/pilot_perplexity.py`）。据此 Pilot 转向**基于置信度的 early-exit**：当预测熵持续低于阈值时提前结束生成。
 
-*以上实验环境均为 NVIDIA L20（48GB）；国产卡环境验证见环境矩阵。*
+**early-exit 首批权衡数据（C500 实测，Qwen2.5-0.5B/3B）**：朴素逐 token 熵阈值不可用——聊天模型的格式化 token 形成散布全答案的超低熵簇，任何阈值都会过早截断；引入**连续窗口判据**（`entropy_window`，连续 N 步低熵才退出）后得到单调可控的权衡曲线：保守档省 ~9% token 保留 93% 内容，激进档省 66% 保留 42%（8 提示词 × 128 token，greedy）。曲线族与原始数据见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md#附带发现-2窗口化-early-exit-首批权衡数据)。
+
+### 3. 跨硬件实证：冗余画像在沐曦 C500 与 NVIDIA L20 上一致
+
+同一模型、同一提示词、同一解码协议（greedy / bf16 / 50 token），分别在 MetaX 曦云 C500 与 NVIDIA L20 上诊断，逐层冗余画像的皮尔逊相关系数：
+
+| 模型 | r（余弦画像） | r（Relative Delta 画像） |
+|---|---|---|
+| Qwen2.5-0.5B | 0.9998 | 1.0000 |
+| Qwen2.5-3B | 1.0000 | 1.0000 |
+| Qwen2.5-7B | 1.0000 | 1.0000 |
+
+在该测试范围内，「哪些层冗余」的结论跨硬件可迁移——无需为每种 GPU 重新推导。方法学与全部数据见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md)。同轮 C500 实测还驱动了一次工具自身的重要修复：hook 采集开销从旧实现的多层数下 +400~486%（逐层设备同步被放大）优化到 +55% 量级（每步一次批量回传），指标数值逐位不变——「先测量，再优化」正是 UniVis 的用途示范。
+
+*以上实验环境：NVIDIA L20（48GB）与 MetaX 曦云 C500（16GB sGPU 切分）；27B 级模型为 L20 单侧验证。*
 
 ## 快速开始
 
@@ -207,7 +221,7 @@ python your_script.py               # 终端 3：transport="websocket" 运行推
 
 ## 工程质量
 
-- **80 项单元测试**（8 个测试文件）覆盖 SDK、server、报告生成、三终端链路与 Pilot，`pytest tests/` 全绿；
+- **82 项单元测试**（8 个测试文件）覆盖 SDK、server、报告生成、三终端链路与 Pilot，`pytest tests/` 全绿；
 - **GitHub Actions CI**：每次 push 在 Python 3.10 / 3.12 + CPU torch 上自动跑全量测试；
 - Python ≥ 3.10 全类型注解，SDK 10 个模块，公开 API 统一在 `__init__.py` 导出。
 
@@ -216,12 +230,12 @@ src/univis/      Python SDK —— attach() → on_step() → finish()
 dashboard/       React 18 + TypeScript + ECharts 前端
 docs/images/     报告与图表样例
 examples/        可运行示例
-tests/           80 项单元测试
+tests/           82 项单元测试
 ```
 
 ## 路线图
 
-- **近期** —— Pilot early-exit 权衡曲线（熵阈值 × 提前终止 → 质量/加速量化）；MetaX 曦云 C500 适配验证（阶段 A / B）。
+- **近期** —— Pilot early-exit：首批权衡数据已产出（C500，窗口判据），扩展到更多提示词集与 27B 级；C500 剩余 ~55% 采集开销的继续压缩；27B 级 C500 整机验证。
 - **中期** —— MXMACA 验证深化（阶段 C，对接 FlagGems / mcTriton 生态）；DiT / 视频生成模型（去噪步之间的时序冗余）；hook 下钻到 Attention / FFN 子层。
 - **远期** —— 70B+ 与 MoE 模型；接入主流推理框架。
 

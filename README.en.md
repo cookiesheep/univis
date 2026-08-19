@@ -9,7 +9,7 @@
 `AI Infra · LLM inference optimization & deployment`
 
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-80-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-82-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -83,15 +83,15 @@ UniVis's implementation is inherently portable across hardware — every claim b
 | Environment | Hardware | Status | Verified content |
 |---|---|---|---|
 | NVIDIA L20 (48GB) | NVIDIA GPU | ✅ **verified** | full diagnostics on Qwen2.5-0.5B / 3B / 7B + 27B-class hybrid (~54× parameter span) |
-| CPU (no GPU) | — | ✅ **verified** | full 80-test suite, offline report rendering |
-| MetaX Xiyun C500 (sGPU slice instance) | MetaX GPU + MXMACA stack | ✅ **phase A verified** (phase B planned) | full Qwen2.5-0.5B-Instruct generation + HTML report + JSONL + environment fingerprint, [evidence archive](docs/mxmaca/phase-a/README.md) |
+| CPU (no GPU) | — | ✅ **verified** | full 82-test suite, offline report rendering |
+| MetaX Xiyun C500 (sGPU slice instance) | MetaX GPU + MXMACA stack | ✅ **phases A + B verified** | cross-hardware comparison Qwen2.5-0.5B / 3B / 7B vs. NVIDIA L20 (profile agreement r ≥ 0.9998), [evidence archive](docs/mxmaca/phase-b/README.md) |
 
 ### Staged roadmap
 
 | Phase | Goal | Completion criterion | Status |
 |---|---|---|---|
 | A | metric-collection pipeline on Xiyun C500 | one full Qwen2.5-0.5B generation producing an HTML report + archived JSONL + environment fingerprint (exact MXMACA / mcPyTorch versions + `mx-smi` output) | ✅ **completed (2026-08-19)**, [evidence](docs/mxmaca/phase-a/README.md) |
-| B | cross-scale redundancy baseline on C500 | baseline reports for 0.5B / 3B / 7B + a same-model, same-prompt comparison table vs. NVIDIA L20 | planned |
+| B | cross-scale redundancy baseline on C500 | baseline reports for 0.5B / 3B / 7B + a same-model, same-prompt comparison table vs. NVIDIA L20 | ✅ **completed (2026-08-19)**: profile agreement r ≥ 0.9998 at all three scales, [evidence](docs/mxmaca/phase-b/README.md) (27B-class needs a full C500 — later scope) |
 | C | feed diagnostics back into the MetaX ecosystem | use redundancy findings as input to FlagGems / mcTriton operator optimization | exploratory |
 
 ### Exact support contract & scope statement
@@ -118,7 +118,7 @@ We look forward to collaborating with MetaX and the MXMACA community on test res
 - **Offline HTML report** — single file, zero dependencies, opens anywhere: model-MRI rings, layer-pulse sparklines, ThemeRiver, redundancy ranking with trend annotations.
 - **Multi-model comparison CLI** — `univis compare` for cross-model redundancy distributions, with radar charts and tables.
 - **Pilot intervention (experimental)** — turning measurement into action: confidence-based early-exit during generation; the negative result of the layer-skip route is fully public (below).
-- **Engineering quality** — 80 unit tests green, GitHub Actions CI, 3 CLI entry points, full type hints on Python 3.10+.
+- **Engineering quality** — 82 unit tests green, GitHub Actions CI, 3 CLI entry points, full type hints on Python 3.10+.
 
 ## Empirical findings
 
@@ -141,9 +141,23 @@ Pilot v1 followed the intuition "high cosine similarity = skippable" and skipped
 | Baseline (all layers) | 13.81 | — |
 | Skip middle redundant layers | 105.67 | **+665%** |
 
-Conclusion: saturated cosine similarity ≠ useless layer; "apparently redundant" layers in residual architectures still perform necessary refinement (full record in commit `1938d60` and `examples/pilot_perplexity.py`). Pilot has therefore pivoted to **confidence-based early-exit**: terminate generation when prediction entropy falls below a threshold — the entropy-threshold × early-stop quality/speedup tradeoff curve is being quantified now.
+Conclusion: saturated cosine similarity ≠ useless layer; "apparently redundant" layers in residual architectures still perform necessary refinement (full record in commit `1938d60` and `examples/pilot_perplexity.py`). Pilot has therefore pivoted to **confidence-based early-exit**: terminate generation when prediction entropy stays below a threshold.
 
-*All experiments above ran on NVIDIA L20 (48GB); domestic-accelerator validation is tracked in the environment matrix.*
+**First early-exit tradeoff data (measured on C500, Qwen2.5-0.5B/3B):** naive per-token entropy thresholds are unusable — formatting tokens in chat answers form ultra-low-entropy patches scattered throughout, so any threshold truncates early. A **window criterion** (`entropy_window`: require N consecutive low-entropy steps) restores a monotonic, controllable curve: a conservative setting saves ~9% of tokens while keeping 93% of content; an aggressive one saves 66% while keeping 42% (8 prompts × 128 tokens, greedy). Curve family and raw data: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md).
+
+### 3. Cross-hardware evidence: redundancy profiles agree between MetaX C500 and NVIDIA L20
+
+Same model, same prompt, same decoding protocol (greedy / bf16 / 50 tokens) on both MetaX Xiyun C500 and NVIDIA L20; per-layer redundancy profiles correlate at:
+
+| Model | r (cosine profile) | r (relative-delta profile) |
+|---|---|---|
+| Qwen2.5-0.5B | 0.9998 | 1.0000 |
+| Qwen2.5-3B | 1.0000 | 1.0000 |
+| Qwen2.5-7B | 1.0000 | 1.0000 |
+
+Within this tested scope, "which layers are redundant" transfers across hardware — no re-derivation per GPU needed. Methodology and full data: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md). The same C500 session also drove a fix to UniVis itself: hook overhead went from +400~486% on many-layer models (per-layer device syncs amplified) down to ~+55% (one batched transfer per step) with bit-identical metric values — measure first, then optimize.
+
+*Environments: NVIDIA L20 (48GB) and MetaX Xiyun C500 (16GB sGPU slice); the 27B-class model is verified on L20 only.*
 
 ## Quick start
 
@@ -207,7 +221,7 @@ Three layers: the collection SDK (detection / probe / metrics / transport / trac
 
 ## Engineering quality
 
-- **80 unit tests** (8 test files) covering the SDK, server, report generation, the three-terminal pipeline, and Pilot — `pytest tests/` fully green;
+- **82 unit tests** (8 test files) covering the SDK, server, report generation, the three-terminal pipeline, and Pilot — `pytest tests/` fully green;
 - **GitHub Actions CI**: every push runs the full suite on Python 3.10 / 3.12 with CPU torch;
 - full type hints on Python ≥ 3.10; 10 SDK modules; public API exported from `__init__.py`.
 
@@ -216,12 +230,12 @@ src/univis/      Python SDK — attach() → on_step() → finish()
 dashboard/       React 18 + TypeScript + ECharts frontend
 docs/images/     sample reports and charts
 examples/        runnable examples
-tests/           80 unit tests
+tests/           82 unit tests
 ```
 
 ## Roadmap
 
-- **Near term** — Pilot early-exit tradeoff curves (entropy threshold × early stop → quantified quality/speedup); MetaX Xiyun C500 adaptation (phases A / B).
+- **Near term** — Pilot early-exit: first tradeoff data landed (C500, window criterion); extend to more prompt sets and 27B-class; further reduce the remaining ~55% C500 collection overhead; 27B-class on a full C500.
 - **Mid term** — deeper MXMACA validation (phase C, integrating with the FlagGems / mcTriton ecosystem); DiT / video-generation models (temporal redundancy across denoising steps); hooks drilled down to Attention / FFN sub-layers.
 - **Long term** — 70B+ and MoE models; integration with mainstream inference frameworks.
 
