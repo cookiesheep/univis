@@ -25,7 +25,9 @@ class _FakeModel(nn.Module):
 
     def forward(self, x):
         for layer in self.layers:
-            x = layer(x)[0]
+            x = layer(x)
+            if isinstance(x, tuple):
+                x = x[0]
         return x
 
 
