@@ -1,5 +1,5 @@
-/* UniVis gallery v2 interactions — wafer lattice background, dual theme,
-   hover previews, hero telemetry replay, early-exit chart. No dependencies. */
+/* UniVis gallery v2.1 — richer lattice pulses, self-resuming hero with
+   per-layer normalization + "UniVis" write-in, hover previews, dual theme. */
 
 (function () {
   'use strict';
@@ -28,20 +28,20 @@
     [0.75, 248, 148, 65],
     [1.00, 240, 249, 33],
   ];
-  function plasma(t) {
+  function plasmaRGB(t) {
     t = Math.max(0, Math.min(1, t));
     for (var i = 1; i < STOPS.length; i++) {
       if (t <= STOPS[i][0]) {
         var a = STOPS[i - 1], b = STOPS[i];
         var f = (t - a[0]) / (b[0] - a[0]);
-        var rgb = [0, 1, 2].map(function (k) {
+        return [0, 1, 2].map(function (k) {
           return Math.round(a[k + 1] + f * (b[k + 1] - a[k + 1]));
         });
-        return 'rgb(' + rgb.join(',') + ')';
       }
     }
-    return 'rgb(240,249,33)';
+    return [240, 249, 33];
   }
+  function plasma(t) { return 'rgb(' + plasmaRGB(t).join(',') + ')'; }
 
   /* ================= wafer compute lattice background ================= */
   var bg = document.getElementById('bgCanvas');
@@ -58,7 +58,6 @@
       bg.height = Math.floor(innerHeight * DPR);
     }
 
-    /* deterministic PRNG so the etched pattern is stable across resizes */
     function mulberry32(seed) {
       return function () {
         seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
@@ -79,7 +78,6 @@
       var trace = cssVar('--lat-trace');
       var via = cssVar('--lat-via');
 
-      /* die grid */
       var cols = Math.ceil(W / (CELL * DPR)), rows = Math.ceil(H / (CELL * DPR));
       for (var i = 0; i <= cols; i++) {
         for (var j = 0; j <= rows; j++) {
@@ -89,7 +87,6 @@
           c.strokeRect(x + 4 * DPR, y + 4 * DPR, CELL * DPR - 8 * DPR, CELL * DPR - 8 * DPR);
         }
       }
-      /* etched circuit traces with right-angle bends + vias */
       var nTraces = Math.max(6, Math.floor(cols * rows / 260));
       for (var k = 0; k < nTraces; k++) {
         var x0 = Math.floor(rnd() * cols) * CELL * DPR + CELL * DPR / 2;
@@ -111,7 +108,6 @@
           c.beginPath(); c.arc(p[0], p[1], 2.2 * DPR, 0, Math.PI * 2); c.fill();
         });
       }
-      /* die boundary reticle corners */
       c.strokeStyle = line2; c.lineWidth = 1.4 * DPR;
       var m = 26 * DPR, L = 60 * DPR;
       [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]].forEach(function (q) {
@@ -125,10 +121,14 @@
     function drawPulse(p, now) {
       var age = (now - p.t0) / p.dur;
       if (age < 0 || age > 1) return false;
-      var ease = age < 0.5 ? age * 2 : (1 - age) * 2; /* in-out */
-      bctx.fillStyle = plasma(p.hue);
-      bctx.globalAlpha = 0.10 * ease;
-      p.cells.forEach(function (cl) {
+      var ease = age < 0.5 ? age * 2 : (1 - age) * 2;
+      var rgb = plasmaRGB(p.hue);
+      /* each cell of a cluster gets a nearby hue: multi-color within one pulse */
+      bctx.globalAlpha = 0.13 * ease;
+      p.cells.forEach(function (cl, idx) {
+        var h2 = Math.min(1, Math.max(0, p.hue + cl[2]));
+        var c2 = plasmaRGB(h2);
+        bctx.fillStyle = 'rgb(' + c2.join(',') + ')';
         bctx.fillRect(cl[0] * CELL * DPR + 4 * DPR, cl[1] * CELL * DPR + 4 * DPR,
           CELL * DPR - 8 * DPR, CELL * DPR - 8 * DPR);
       });
@@ -140,15 +140,21 @@
       bctx.clearRect(0, 0, bg.width, bg.height);
       if (staticLayer) bctx.drawImage(staticLayer, 0, 0);
       pulses = pulses.filter(function (p) { return drawPulse(p, now); });
-      if (pulses.length < 2 && Math.random() < 0.02) {
+      if (pulses.length < 6 && Math.random() < 0.06) {
         var cols = Math.ceil(bg.width / (CELL * DPR)), rows = Math.ceil(bg.height / (CELL * DPR));
-        var cx = 1 + Math.floor(Math.random() * (cols - 3));
-        var cy = 1 + Math.floor(Math.random() * (rows - 3));
+        var cx = 1 + Math.floor(Math.random() * (cols - 4));
+        var cy = 1 + Math.floor(Math.random() * (rows - 4));
+        var hue = Math.random();
         var cells = [];
-        for (var i = 0; i < 4; i++) {
-          cells.push([cx + Math.floor(Math.random() * 2), cy + Math.floor(Math.random() * 3)]);
+        var n = 4 + Math.floor(Math.random() * 5);
+        for (var i = 0; i < n; i++) {
+          cells.push([
+            cx + Math.floor(Math.random() * 3),
+            cy + Math.floor(Math.random() * 3),
+            (Math.random() - 0.5) * 0.3, /* per-cell hue offset */
+          ]);
         }
-        pulses.push({ cells: cells, hue: Math.random(), t0: now, dur: 2200 + Math.random() * 1400 });
+        pulses.push({ cells: cells, hue: hue, t0: now, dur: 2000 + Math.random() * 1600 });
       }
       requestAnimationFrame(loop);
     }
@@ -178,16 +184,58 @@
     var ROWS = HERO.layers, COLS = Math.min(HERO.tokens, 478);
     var DATA = HERO.data;
 
-    var flat = [];
-    for (var s = 0; s < COLS; s++) for (var l = 0; l < ROWS; l++) flat.push(DATA[s][l]);
-    flat.sort(function (a, b) { return a - b; });
-    var lo = flat[Math.floor(flat.length * 0.02)];
-    var hi = flat[Math.floor(flat.length * 0.98)];
-    var span = Math.max(hi - lo, 1e-6);
+    /* per-layer robust scaling: each layer normalized to its own p2-p98 so
+       mid/low layers' structure is visible next to the dominant first layer */
+    var rowLo = [], rowSpan = [];
+    for (var l = 0; l < ROWS; l++) {
+      var vals = [];
+      for (var s = 0; s < COLS; s++) vals.push(DATA[s][l]);
+      vals.sort(function (a, b) { return a - b; });
+      var lo2 = vals[Math.floor(vals.length * 0.02)];
+      var hi2 = vals[Math.floor(vals.length * 0.98)];
+      rowLo.push(lo2);
+      rowSpan.push(Math.max(hi2 - lo2, 1e-6));
+    }
+    function valAt(s, l) {
+      return Math.max(0, Math.min(1, (DATA[s][l] - rowLo[l]) / rowSpan[l]));
+    }
 
     var W = canvas.width, H = canvas.height;
     var padL = 46, padR = 10, padT = 12, padB = 26;
     var cw = (W - padL - padR) / COLS, ch = (H - padT - padB) / ROWS;
+
+    /* "UniVis" cell mask: rasterize the word onto the cell grid, placed in
+       the low-activity (dark/blue) region on the right half */
+    var NAME = 'UniVis';
+    var nameMask = []; /* [col, row] cells */
+    (function buildNameMask() {
+      var off = document.createElement('canvas');
+      var gw = Math.floor((W - padL - padR) / cw * 0.92);
+      var gh = ROWS;
+      off.width = gw; off.height = gh;
+      var c = off.getContext('2d');
+      c.fillStyle = '#fff';
+      var fs = Math.min(gh * 0.52, 34);
+      c.font = '700 ' + fs + 'px "DM Sans", Arial, sans-serif';
+      c.textBaseline = 'middle';
+      c.textAlign = 'center';
+      c.fillText(NAME, gw / 2, gh / 2 + 1);
+      var img = c.getImageData(0, 0, gw, gh).data;
+      var startCol = Math.floor(COLS * 0.58);
+      var avail = Math.min(gw, COLS - startCol - 2);
+      for (var y = 0; y < gh; y++) {
+        for (var x = 0; x < avail; x++) {
+          if (img[(y * gw + x) * 4 + 3] > 128) {
+            nameMask.push([startCol + x, y]);
+          }
+        }
+      }
+    })();
+    var nameCellsByCol = {};
+    nameMask.forEach(function (m) {
+      (nameCellsByCol[m[0]] = nameCellsByCol[m[0]] || []).push(m[1]);
+    });
+    var nameCols = Object.keys(nameCellsByCol).map(Number).sort(function (a, b) { return a - b; });
 
     function drawGrid() {
       ctx.fillStyle = '#0d1017';
@@ -204,57 +252,105 @@
       ctx.fillText('layer', 6, padT - 3);
     }
 
-    function drawUpTo(col) {
+    function cellRect(s, l) {
+      return [padL + s * cw, padT + l * ch, Math.max(cw - 0.4, 0.6), Math.max(ch - 0.6, 0.6)];
+    }
+
+    /* mode: 'data' up to col; nameProg 0..1 writes UniVis cells hot */
+    function drawUpTo(col, nameProg) {
       drawGrid();
-      for (var s = 0; s < col; s++) {
+      for (var s = 0; s < Math.min(col, COLS); s++) {
         for (var l = 0; l < ROWS; l++) {
-          var v = (DATA[s][l] - lo) / span;
-          ctx.fillStyle = plasma(v);
-          ctx.fillRect(padL + s * cw, padT + l * ch, Math.max(cw - 0.4, 0.6), Math.max(ch - 0.6, 0.6));
+          var r = cellRect(s, l);
+          ctx.fillStyle = plasma(valAt(s, l));
+          ctx.fillRect(r[0], r[1], r[2], r[3]);
         }
       }
       if (col > 0 && col < COLS) {
         ctx.fillStyle = 'rgba(240,249,33,0.16)';
         ctx.fillRect(padL + (col - 1) * cw, padT, cw * 2.2, ROWS * ch);
       }
+      /* UniVis write-in: letters emerge as hot cells over the quiet region */
+      if (nameProg > 0) {
+        var upto = Math.floor(nameProg * nameCols.length);
+        for (var i = 0; i < upto; i++) {
+          var nc = nameCols[i];
+          nameCellsByCol[nc].forEach(function (rw) {
+            var r = cellRect(nc, rw);
+            var t = 0.72 + 0.28 * ((nc % 7) / 7);
+            ctx.fillStyle = plasma(t);
+            ctx.fillRect(r[0], r[1], r[2], r[3]);
+          });
+        }
+        /* leading glow edge */
+        if (upto > 0 && upto < nameCols.length) {
+          var ec = nameCols[upto - 1];
+          ctx.fillStyle = 'rgba(240,249,33,0.25)';
+          ctx.fillRect(padL + ec * cw, padT, cw * 2.5, ROWS * ch);
+        }
+      }
       var lbl = document.getElementById('roToken');
-      if (lbl) lbl.textContent = 'token ' + String(Math.min(col, COLS)).padStart(3, '0') + '/' + COLS;
+      var st = document.getElementById('roState');
+      if (lbl) {
+        lbl.textContent = nameProg > 0
+          ? 'generating: ' + NAME
+          : 'token ' + String(Math.min(col, COLS)).padStart(3, '0') + '/' + COLS;
+      }
+      if (st && nameProg >= 1) st.textContent = 'signature · ' + NAME;
     }
 
     var reducedHero = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reducedHero) {
-      drawUpTo(COLS);
+      drawUpTo(COLS, 1);
       var st0 = document.getElementById('roState');
       if (st0) st0.textContent = 'static render';
     } else {
-      var col = 0, paused = false, holdUntil = 0;
+      var col = 0, nameProg = 0, holdUntil = 0, phase = 'data'; /* data -> name -> hold */
+      var lastPointer = 0, paused = false;
+
       function frame(ts) {
-        if (!paused) {
-          if (ts > holdUntil) {
+        if (!paused && ts > holdUntil) {
+          if (phase === 'data') {
             var speed = Math.max(1, Math.round(COLS / 900));
-            drawUpTo(col);
+            drawUpTo(col, 0);
             col += speed;
-            if (col > COLS + 60) { col = 0; holdUntil = ts + 400; }
+            if (col > COLS + 30) { phase = 'name'; col = COLS; }
+          } else if (phase === 'name') {
+            nameProg = Math.min(1, nameProg + 0.02);
+            drawUpTo(COLS, nameProg);
+            if (nameProg >= 1) { phase = 'hold'; holdUntil = ts + 3200; }
+          } else {
+            drawUpTo(COLS, 1);
+            holdUntil = ts + 500;
+            phase = 'data'; col = 0; nameProg = 0;
           }
         }
         requestAnimationFrame(frame);
       }
       requestAnimationFrame(frame);
-      canvas.addEventListener('pointermove', function (e) {
+
+      function scrub(e) {
         paused = true;
+        lastPointer = Date.now();
         var rect = canvas.getBoundingClientRect();
         var x = (e.clientX - rect.left) / rect.width * W;
         var c = Math.round((x - padL) / cw);
-        drawUpTo(Math.max(0, Math.min(c, COLS)));
+        phase = 'data'; nameProg = 0;
+        drawUpTo(Math.max(0, Math.min(c, COLS)), 0);
         var st = document.getElementById('roState');
         if (st) st.textContent = 'scrub — pointer';
-      });
-      canvas.addEventListener('pointerleave', function () {
-        paused = false;
-        col = Math.max(col, 1);
-        var st = document.getElementById('roState');
-        if (st) st.textContent = 'replaying…';
-      });
+      }
+      canvas.addEventListener('pointermove', scrub);
+      canvas.addEventListener('pointerdown', scrub);
+      /* self-resume: 2.5s after the last pointer interaction */
+      setInterval(function () {
+        if (paused && Date.now() - lastPointer > 2500) {
+          paused = false;
+          phase = 'data';
+          var st = document.getElementById('roState');
+          if (st) st.textContent = 'replaying…';
+        }
+      }, 500);
     }
   }
 

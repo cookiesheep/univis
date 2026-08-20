@@ -57,7 +57,7 @@
         <span class="mono" id="roToken">token 000/478</span>
         <span class="mono" id="roState">replaying…</span>
       </div>
-      <p class="hero-cap mono">live telemetry · Qwen2.5-7B · MetaX Xiyun C500 (MXMACA) · greedy · data committed in-repo</p>
+      <p class="hero-cap mono">live telemetry · Qwen2.5-7B · MetaX Xiyun C500 (MXMACA) · greedy · per-layer scaled for visibility · data committed in-repo</p>
     </div>
     <div class="cta reveal">
       <a class="btn primary" href="https://github.com/cookiesheep/univis" rel="noopener">GitHub 仓库</a>
@@ -135,19 +135,19 @@
 <section id="timeline" class="section alt">
   <div class="section-head reveal">
     <p class="kicker">04 · MXMACA 适配实录</p>
-    <h2>一个租来的夜晚：C500 上的一夜冲刺</h2>
-    <p class="lede">2026-08-19 晚，在 Gitee AI 模力方舟按小时租用曦云 C500（16GB sGPU 切分），
-    从零代码修改跑通到跨硬件实证、再到工具自身的性能修复，全部在一个实例生命周期内完成。</p>
+    <h2>MXMACA 适配实录：扎根 C500 的验证之路</h2>
+    <p class="lede">验证在 Gitee AI（模力方舟）平台的曦云 C500 实例上完成：从零代码修改跑通指标采集，
+    到跨硬件实证与工具自身的性能修复，每一步都留有可复核的原始数据与环境指纹。</p>
   </div>
   <ol class="tl" id="tl">
-    <li class="reveal"><span class="tl-time mono">22:36</span><div><h3>实例就位</h3><p>租下曦云 C500 切分实例（¥1/时），官方 MACA 3.x + PyTorch 2.8.0 镜像。环境指纹三件套（mx-smi / torch 版本 / 系统信息）先行留档。</p></div></li>
-    <li class="reveal"><span class="tl-time mono">22:53</span><div><h3>阶段 A · 通路验证</h3><p>Qwen2.5-0.5B 完整生成，<b>零代码修改</b>挂上全部 24 层 hook，384 步指标全量采集，自包含 HTML 报告与 JSONL 落盘。</p></div></li>
-    <li class="reveal"><span class="tl-time mono">23:07</span><div><h3>阶段 B · 三规模对照</h3><p>0.5B / 3B / 7B 与 NVIDIA L20 同协议对照，画像一致性 r ≥ 0.9998。意外收获：7B（bf16 权重 15.3GB）在 16GB 切分实例上完整跑通。</p></div></li>
-    <li class="reveal"><span class="tl-time mono">23:18</span><div><h3>方法学加固</h3><p>L20 间隔两月重跑稳定性验证 r ≥ 0.9985——排除运行噪声，跨硬件差异只能来自数值栈。</p></div></li>
-    <li class="reveal"><span class="tl-time mono">23:30</span><div><h3>early-exit 首轮 · 一个负结果</h3><p>朴素逐 token 熵阈值 100% 过早截断。逐 token 熵序列追踪定位根因：格式化 token 形成散布全答案的超低熵簇（&lt;0.05 nats）。</p></div></li>
-    <li class="reveal"><span class="tl-time mono">23:40</span><div><h3>窗口判据 · 把负结果变功能</h3><p>实现 entropy_window（连续 N 步低熵才退出）。24 提示词复测得到单调可控权衡曲线——负结果公开入库，修复成为 v0.6.0 功能。</p></div></li>
-    <li class="reveal"><span class="tl-time mono">23:52</span><div><h3>给工具自己治病</h3><p>实测发现 hook 采集在多层数模型上拖慢生成 4–5 倍。重构为设备端张量化 + 每步单次批量回传：+400% → 约 +55%，指标数值逐位不变（MAE = 0.0000）。</p></div></li>
-    <li class="reveal"><span class="tl-time mono">00:12</span><div><h3>实时演示 + v0.6.0</h3><p>Qwen2.5-7B 经 SSH 隧道实时驱动 Dashboard，热力图逐 token 生长——本站 hero 即其截图数据。随后多提示词 r = 1.0000、TinyLlama 跨架构、v0.6.0 发布。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">01</span><div><h3>环境就位</h3><p>曦云 C500 实例，官方 MACA 3.x + PyTorch 2.8.0 镜像。环境指纹三件套（mx-smi / torch 版本 / 系统信息）先行留档。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">02</span><div><h3>阶段 A · 通路验证</h3><p>Qwen2.5-0.5B 完整生成，<b>零代码修改</b>挂上全部 24 层 hook，384 步指标全量采集，自包含 HTML 报告与 JSONL 落盘。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">03</span><div><h3>阶段 B · 三规模对照</h3><p>0.5B / 3B / 7B 与 NVIDIA L20 同协议对照，画像一致性 r ≥ 0.9998。边界实测：7B（bf16 权重 15.3GB）在 16GB 切分实例上完整跑通。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">04</span><div><h3>方法学加固</h3><p>L20 间隔两月重跑稳定性验证 r ≥ 0.9985——排除运行噪声，跨硬件差异只能来自数值栈。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">05</span><div><h3>early-exit 首轮：负结果与定位</h3><p>朴素逐 token 熵阈值 100% 过早截断。逐 token 熵序列追踪定位根因：格式化 token 形成散布全答案的超低熵簇（&lt;0.05 nats）。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">06</span><div><h3>窗口判据：从负结果到可用功能</h3><p>实现 entropy_window（连续 N 步低熵才退出）。24 提示词复测得到单调可控权衡曲线——负结果公开入库，修复成为 v0.6.0 功能。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">07</span><div><h3>工具自身的性能修复</h3><p>实测发现 hook 采集在多层数模型上拖慢生成 4–5 倍。重构为设备端张量化 + 每步单次批量回传：+400% → 约 +55%，指标数值逐位不变（MAE = 0.0000）。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">08</span><div><h3>实时演示与版本发布</h3><p>Qwen2.5-7B 经 SSH 隧道实时驱动 Dashboard，热力图逐 token 生长——本站 hero 即其截图数据。随后多提示词 r = 1.0000、TinyLlama 跨架构、v0.6.0 发布。</p></div></li>
   </ol>
 </section>
 
@@ -155,7 +155,7 @@
 <section id="earlyexit" class="section">
   <div class="section-head reveal">
     <p class="kicker">05 · Pilot early-exit</p>
-    <h2>把度量变成行动：可调的「质量—算力」旋钮</h2>
+    <h2>把度量变成行动：质量与算力的可调权衡</h2>
     <p class="lede">当模型连续多步足够自信时提前结束生成。横轴为熵阈值（log 刻度），纵轴为生成的 token 数（% 相对基线）——
     曲线上的每一点都是 C500 上的真实测量（24 条多样化提示词，窗口 = 5）。</p>
   </div>
@@ -173,7 +173,7 @@
 <section id="honest" class="section alt">
   <div class="section-head reveal">
     <p class="kicker">06 · 公开的负结果</p>
-    <h2>我们错过的一次，以及为什么把它写进 README</h2>
+    <h2>负结果也是结果：layer-skip 的公开记录</h2>
     <p class="lede">Pilot v1 曾按「高余弦相似度 = 可跳过」的直觉直接跳过中间冗余层。Qwen2.5-7B 实测：</p>
   </div>
   <div class="honest-table reveal">
@@ -194,7 +194,7 @@
 <section id="contract" class="section">
   <div class="section-head reveal">
     <p class="kicker">07 · 精确支持契约</p>
-    <h2>验证了什么，就说什么</h2>
+    <h2>精确支持契约与验证边界</h2>
   </div>
   <div class="contract-grid">
     <div class="reveal">
@@ -232,7 +232,7 @@
 <section id="ack" class="section alt">
   <div class="section-head reveal">
     <p class="kicker">08 · 真机硬件与生态</p>
-    <h2>在国产 GPU 上，它是真的能跑</h2>
+    <h2>扎根国产算力：曦云 C500 上的真机验证</h2>
   </div>
   <div class="ack-grid">
     <div class="ack-card reveal">
