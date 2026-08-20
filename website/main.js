@@ -1,10 +1,26 @@
-/* UniVis gallery interactions: hero telemetry replay, report cards,
-   early-exit chart, scroll reveals. No dependencies. */
+/* UniVis gallery v2 interactions — wafer lattice background, dual theme,
+   hover previews, hero telemetry replay, early-exit chart. No dependencies. */
 
 (function () {
   'use strict';
 
-  /* ---------- plasma colormap (matplotlib plasma approximation) ---------- */
+  /* ================= theme ================= */
+  var root = document.documentElement;
+  var themeBtn = document.getElementById('themeToggle');
+  function currentTheme() { return root.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      var next = currentTheme() === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('univis-theme', next); } catch (e) {}
+      document.dispatchEvent(new CustomEvent('themechange'));
+    });
+  }
+  function cssVar(name) {
+    return getComputedStyle(root).getPropertyValue(name).trim();
+  }
+
+  /* ================= plasma ================= */
   var STOPS = [
     [0.00, 13, 8, 135],
     [0.25, 126, 3, 168],
@@ -27,14 +43,141 @@
     return 'rgb(240,249,33)';
   }
 
-  /* ---------- hero: replay real telemetry ---------- */
+  /* ================= wafer compute lattice background ================= */
+  var bg = document.getElementById('bgCanvas');
+  if (bg) {
+    var bctx = bg.getContext('2d');
+    var DPR = Math.min(window.devicePixelRatio || 1, 2);
+    var CELL = 30;
+    var staticLayer = null;
+    var pulses = [];
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function sizeBg() {
+      bg.width = Math.floor(innerWidth * DPR);
+      bg.height = Math.floor(innerHeight * DPR);
+    }
+
+    /* deterministic PRNG so the etched pattern is stable across resizes */
+    function mulberry32(seed) {
+      return function () {
+        seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+        var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function renderStatic() {
+      var W = bg.width, H = bg.height;
+      var off = document.createElement('canvas');
+      off.width = W; off.height = H;
+      var c = off.getContext('2d');
+      var rnd = mulberry32(20260819);
+      var line = cssVar('--lat-line');
+      var line2 = cssVar('--lat-line2');
+      var trace = cssVar('--lat-trace');
+      var via = cssVar('--lat-via');
+
+      /* die grid */
+      var cols = Math.ceil(W / (CELL * DPR)), rows = Math.ceil(H / (CELL * DPR));
+      for (var i = 0; i <= cols; i++) {
+        for (var j = 0; j <= rows; j++) {
+          var x = i * CELL * DPR, y = j * CELL * DPR;
+          c.strokeStyle = (rnd() < 0.06) ? line2 : line;
+          c.lineWidth = 1;
+          c.strokeRect(x + 4 * DPR, y + 4 * DPR, CELL * DPR - 8 * DPR, CELL * DPR - 8 * DPR);
+        }
+      }
+      /* etched circuit traces with right-angle bends + vias */
+      var nTraces = Math.max(6, Math.floor(cols * rows / 260));
+      for (var k = 0; k < nTraces; k++) {
+        var x0 = Math.floor(rnd() * cols) * CELL * DPR + CELL * DPR / 2;
+        var y0 = Math.floor(rnd() * rows) * CELL * DPR + CELL * DPR / 2;
+        var segs = 2 + Math.floor(rnd() * 3);
+        var horiz = rnd() < 0.5;
+        c.strokeStyle = trace; c.lineWidth = 1.2 * DPR;
+        c.beginPath(); c.moveTo(x0, y0);
+        var cx = x0, cy = y0;
+        for (var sgi = 0; sgi < segs; sgi++) {
+          var len = (1 + Math.floor(rnd() * 4)) * CELL * DPR * (rnd() < 0.5 ? -1 : 1);
+          if (horiz) { cx += len; } else { cy += len; }
+          c.lineTo(cx, cy);
+          horiz = !horiz;
+        }
+        c.stroke();
+        c.fillStyle = via;
+        [[x0, y0], [cx, cy]].forEach(function (p) {
+          c.beginPath(); c.arc(p[0], p[1], 2.2 * DPR, 0, Math.PI * 2); c.fill();
+        });
+      }
+      /* die boundary reticle corners */
+      c.strokeStyle = line2; c.lineWidth = 1.4 * DPR;
+      var m = 26 * DPR, L = 60 * DPR;
+      [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]].forEach(function (q) {
+        c.beginPath();
+        c.moveTo(q[0] + q[2] * L, q[1]); c.lineTo(q[0], q[1]); c.lineTo(q[0], q[1] + q[3] * L);
+        c.stroke();
+      });
+      staticLayer = off;
+    }
+
+    function drawPulse(p, now) {
+      var age = (now - p.t0) / p.dur;
+      if (age < 0 || age > 1) return false;
+      var ease = age < 0.5 ? age * 2 : (1 - age) * 2; /* in-out */
+      bctx.fillStyle = plasma(p.hue);
+      bctx.globalAlpha = 0.10 * ease;
+      p.cells.forEach(function (cl) {
+        bctx.fillRect(cl[0] * CELL * DPR + 4 * DPR, cl[1] * CELL * DPR + 4 * DPR,
+          CELL * DPR - 8 * DPR, CELL * DPR - 8 * DPR);
+      });
+      bctx.globalAlpha = 1;
+      return true;
+    }
+
+    function loop(now) {
+      bctx.clearRect(0, 0, bg.width, bg.height);
+      if (staticLayer) bctx.drawImage(staticLayer, 0, 0);
+      pulses = pulses.filter(function (p) { return drawPulse(p, now); });
+      if (pulses.length < 2 && Math.random() < 0.02) {
+        var cols = Math.ceil(bg.width / (CELL * DPR)), rows = Math.ceil(bg.height / (CELL * DPR));
+        var cx = 1 + Math.floor(Math.random() * (cols - 3));
+        var cy = 1 + Math.floor(Math.random() * (rows - 3));
+        var cells = [];
+        for (var i = 0; i < 4; i++) {
+          cells.push([cx + Math.floor(Math.random() * 2), cy + Math.floor(Math.random() * 3)]);
+        }
+        pulses.push({ cells: cells, hue: Math.random(), t0: now, dur: 2200 + Math.random() * 1400 });
+      }
+      requestAnimationFrame(loop);
+    }
+
+    function initBg() {
+      sizeBg();
+      renderStatic();
+      bctx.clearRect(0, 0, bg.width, bg.height);
+      bctx.drawImage(staticLayer, 0, 0);
+      if (!reduced && innerWidth >= 768 && !document.hidden) {
+        requestAnimationFrame(loop);
+      }
+    }
+    var rszTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(rszTimer);
+      rszTimer = setTimeout(initBg, 200);
+    });
+    document.addEventListener('themechange', initBg);
+    initBg();
+  }
+
+  /* ================= hero telemetry replay ================= */
   var canvas = document.getElementById('heroCanvas');
   if (canvas && typeof HERO !== 'undefined') {
     var ctx = canvas.getContext('2d');
     var ROWS = HERO.layers, COLS = Math.min(HERO.tokens, 478);
     var DATA = HERO.data;
 
-    // normalize with percentile clip for contrast
     var flat = [];
     for (var s = 0; s < COLS; s++) for (var l = 0; l < ROWS; l++) flat.push(DATA[s][l]);
     flat.sort(function (a, b) { return a - b; });
@@ -70,7 +213,6 @@
           ctx.fillRect(padL + s * cw, padT + l * ch, Math.max(cw - 0.4, 0.6), Math.max(ch - 0.6, 0.6));
         }
       }
-      // active column glow
       if (col > 0 && col < COLS) {
         ctx.fillStyle = 'rgba(240,249,33,0.16)';
         ctx.fillRect(padL + (col - 1) * cw, padT, cw * 2.2, ROWS * ch);
@@ -79,27 +221,25 @@
       if (lbl) lbl.textContent = 'token ' + String(Math.min(col, COLS)).padStart(3, '0') + '/' + COLS;
     }
 
-    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) {
+    var reducedHero = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedHero) {
       drawUpTo(COLS);
-      var st = document.getElementById('roState');
-      if (st) st.textContent = 'static render';
+      var st0 = document.getElementById('roState');
+      if (st0) st0.textContent = 'static render';
     } else {
-      var col = 0, last = 0, paused = false, holdUntil = 0;
+      var col = 0, paused = false, holdUntil = 0;
       function frame(ts) {
         if (!paused) {
           if (ts > holdUntil) {
-            var speed = Math.max(1, Math.round(COLS / 900)); // full pass ~9s
+            var speed = Math.max(1, Math.round(COLS / 900));
             drawUpTo(col);
             col += speed;
             if (col > COLS + 60) { col = 0; holdUntil = ts + 400; }
-            last = ts;
           }
         }
         requestAnimationFrame(frame);
       }
       requestAnimationFrame(frame);
-
       canvas.addEventListener('pointermove', function (e) {
         paused = true;
         var rect = canvas.getBoundingClientRect();
@@ -118,28 +258,27 @@
     }
   }
 
-  /* ---------- report gallery cards ---------- */
+  /* ================= report cards + hover preview ================= */
   var REPORTS = [
-    { f: 'c500_phase_a.html', hw: 'c500', m: 'Qwen2.5-0.5B', note: '阶段 A 通路验证 · 3 提示词 × 128 token · 24 层 × 384 步 · 零代码修改' },
-    { f: 'c500_0.5B.html', hw: 'c500', m: 'Qwen2.5-0.5B', note: '阶段 B 基线协议 · 50 token · 与 L20 同题对照' },
-    { f: 'l20_0.5B.html', hw: 'l20', m: 'Qwen2.5-0.5B', note: '阶段 B 基线协议 · 50 token · r = 1.0000' },
-    { f: 'c500_3B.html', hw: 'c500', m: 'Qwen2.5-3B', note: '36 层 · 6.3GB bf16 · 与 L20 画像一致' },
-    { f: 'l20_3B.html', hw: 'l20', m: 'Qwen2.5-3B', note: '36 层 · r = 1.0000 · MAE 0.0007' },
-    { f: 'c500_7B.html', hw: 'c500', m: 'Qwen2.5-7B', note: '15.3GB bf16 跑通 16GB 切分实例 · 28 层' },
-    { f: 'l20_7B.html', hw: 'l20', m: 'Qwen2.5-7B', note: 'r = 1.0000 · MAE 0.0005（三规模最紧）' },
-    
-    
-    
-    
+    { f: 'c500_phase_a', hw: 'c500', m: 'Qwen2.5-0.5B', note: '阶段 A 通路验证 · 3 提示词 × 128 token · 24 层 × 384 步 · 零代码修改' },
+    { f: 'c500_0.5B', hw: 'c500', m: 'Qwen2.5-0.5B', note: '阶段 B 基线协议 · 50 token · 与 L20 同题对照' },
+    { f: 'l20_0.5B', hw: 'l20', m: 'Qwen2.5-0.5B', note: '阶段 B 基线协议 · 50 token · r = 1.0000' },
+    { f: 'c500_3B', hw: 'c500', m: 'Qwen2.5-3B', note: '36 层 · 6.3GB bf16 · 与 L20 画像一致' },
+    { f: 'l20_3B', hw: 'l20', m: 'Qwen2.5-3B', note: '36 层 · r = 1.0000 · MAE 0.0007' },
+    { f: 'c500_7B', hw: 'c500', m: 'Qwen2.5-7B', note: '15.3GB bf16 跑通 16GB 切分实例 · 28 层' },
+    { f: 'l20_7B', hw: 'l20', m: 'Qwen2.5-7B', note: 'r = 1.0000 · MAE 0.0005（三规模最紧）' },
   ];
   var grid = document.getElementById('reportGrid');
+  var preview = document.getElementById('thumbPreview');
   if (grid) {
     REPORTS.forEach(function (r) {
       var a = document.createElement('a');
       a.className = 'rcard';
-      a.href = 'assets/reports/' + r.f;
+      a.href = 'assets/reports/' + r.f + '.html';
       a.target = '_blank';
       a.rel = 'noopener';
+      a.dataset.thumb = 'assets/thumbs/' + r.f + '.png';
+      a.dataset.model = r.m + ' · ' + (r.hw === 'c500' ? 'MetaX C500' : 'NVIDIA L20');
       a.innerHTML =
         '<span class="tag ' + r.hw + '">' + (r.hw === 'c500' ? 'MetaX C500 · MXMACA' : 'NVIDIA L20') + '</span>' +
         '<h3>' + r.m + '</h3>' +
@@ -148,25 +287,29 @@
         (60 + Math.random() * 40).toFixed(0) + '%;background:linear-gradient(90deg,#7e03a8,#cc4778,#f89441)"></i></span>' +
         '<span class="open">打开完整报告 ↗</span>';
       grid.appendChild(a);
+
+      if (preview && matchMedia('(hover: hover)').matches) {
+        a.addEventListener('mouseenter', function () {
+          var img = preview.querySelector('img');
+          img.src = a.dataset.thumb;
+          preview.querySelector('.tp-cap').textContent = a.dataset.model + ' · 点击卡片打开完整报告';
+          var rect = a.getBoundingClientRect();
+          var px = Math.min(Math.max(rect.left, 12), innerWidth - 352);
+          var py = rect.bottom + 10;
+          if (py + 280 > innerHeight) py = Math.max(12, rect.top - 288);
+          preview.style.left = px + 'px';
+          preview.style.top = py + 'px';
+          preview.classList.add('show');
+        });
+        a.addEventListener('mouseleave', function () { preview.classList.remove('show'); });
+      }
     });
   }
 
-  /* ---------- early-exit interactive chart ---------- */
+  /* ================= early-exit chart (theme-aware) ================= */
   var EE = {
-    q05: {
-      base: 101.3,
-      th: [0.05, 0.1, 0.2, 0.5, 1.0, 2.0],
-      tok: [99.4, 95.3, 78.9, 73.0, 47.5, 21.9],
-      kept: [0.96, 0.93, 0.79, 0.74, 0.54, 0.30],
-      color: '#f89441',
-    },
-    q3: {
-      base: 102.0,
-      th: [0.05, 0.1, 0.2, 0.5, 1.0, 2.0],
-      tok: [79.8, 70.3, 64.5, 47.4, 24.5, 8.5],
-      kept: [0.79, 0.72, 0.67, 0.53, 0.33, 0.17],
-      color: '#cc4778',
-    },
+    q05: { base: 101.3, th: [0.05, 0.1, 0.2, 0.5, 1.0, 2.0], tok: [99.4, 95.3, 78.9, 73.0, 47.5, 21.9], kept: [0.96, 0.93, 0.79, 0.74, 0.54, 0.30], color: '#f89441' },
+    q3: { base: 102.0, th: [0.05, 0.1, 0.2, 0.5, 1.0, 2.0], tok: [79.8, 70.3, 64.5, 47.4, 24.5, 8.5], kept: [0.79, 0.72, 0.67, 0.53, 0.33, 0.17], color: '#cc4778' },
   };
   var eeCanvas = document.getElementById('eeChart');
   if (eeCanvas) {
@@ -177,27 +320,26 @@
     var hoverIdx = -1;
 
     function xOf(th) {
-      var lo = Math.log(0.05), hi = Math.log(2.0);
-      return epad.l + ((Math.log(th) - lo) / (hi - lo)) * (EW - epad.l - epad.r);
+      var lo2 = Math.log(0.05), hi2 = Math.log(2.0);
+      return epad.l + ((Math.log(th) - lo2) / (hi2 - lo2)) * (EW - epad.l - epad.r);
     }
-    function yOf(pct) {
-      return EH - epad.b - (pct / 100) * (EH - epad.t - epad.b);
-    }
+    function yOf(pct) { return EH - epad.b - (pct / 100) * (EH - epad.t - epad.b); }
 
     function drawEE() {
       var d = EE[model];
-      ectx.fillStyle = '#0d1017';
+      var chartBg = cssVar('--chart-bg') || '#0d1017';
+      var gridC = cssVar('--chart-grid') || 'rgba(255,255,255,0.1)';
+      var labelC = cssVar('--chart-label') || 'rgba(152,161,179,0.85)';
+      ectx.fillStyle = chartBg;
       ectx.fillRect(0, 0, EW, EH);
-      ectx.strokeStyle = 'rgba(255,255,255,0.10)';
-      ectx.fillStyle = 'rgba(152,161,179,0.8)';
+      ectx.strokeStyle = gridC;
+      ectx.fillStyle = labelC;
       ectx.font = '11px JetBrains Mono, monospace';
-      // y grid 0..100
       for (var p = 0; p <= 100; p += 25) {
         var y = yOf(p);
         ectx.beginPath(); ectx.moveTo(epad.l, y); ectx.lineTo(EW - epad.r, y); ectx.stroke();
         ectx.fillText(p + '%', 14, y + 4);
       }
-      // x ticks
       d.th.forEach(function (th) {
         var x = xOf(th);
         ectx.beginPath(); ectx.moveTo(x, EH - epad.b); ectx.lineTo(x, EH - epad.b + 5); ectx.stroke();
@@ -209,14 +351,10 @@
       ectx.rotate(-Math.PI / 2);
       ectx.fillText('生成 token / 基线', 0, 0);
       ectx.restore();
-
-      // baseline
-      ectx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ectx.strokeStyle = 'rgba(128,128,128,0.35)';
       ectx.setLineDash([4, 4]);
       ectx.beginPath(); ectx.moveTo(epad.l, yOf(100)); ectx.lineTo(EW - epad.r, yOf(100)); ectx.stroke();
       ectx.setLineDash([]);
-
-      // curve
       ectx.strokeStyle = d.color;
       ectx.lineWidth = 2;
       ectx.beginPath();
@@ -235,6 +373,7 @@
     }
 
     drawEE();
+    document.addEventListener('themechange', drawEE);
     eeCanvas.addEventListener('pointermove', function (e) {
       var d = EE[model];
       var rect = eeCanvas.getBoundingClientRect();
@@ -270,7 +409,7 @@
     });
   }
 
-  /* ---------- pip copy ---------- */
+  /* ================= pip copy ================= */
   var pip = document.getElementById('pipBtn');
   if (pip) {
     pip.addEventListener('click', function () {
@@ -285,7 +424,7 @@
     });
   }
 
-  /* ---------- scroll reveals ---------- */
+  /* ================= scroll reveals ================= */
   var io = new IntersectionObserver(function (entries) {
     entries.forEach(function (en) {
       if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }

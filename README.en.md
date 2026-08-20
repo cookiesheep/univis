@@ -23,7 +23,7 @@ English · [简体中文](README.md)
 
 </div>
 
-<img src="docs/images/dashboard-c500.png" alt="UniVis Dashboard" width="100%">
+<img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="UniVis Dashboard" width="100%">
 
 UniVis attaches to any PyTorch / HuggingFace Transformer via zero-intrusion `forward` hooks, reduces every layer's activations to scalar metrics **at the edge (inside the hook)** — only ~1–2 KB per step — and streams them as JSONL / WebSocket into a real-time dashboard or a standalone offline HTML report. It answers one question: **at inference time, which layers actually compute, and which are redundant.**
 
@@ -39,8 +39,8 @@ UniVis is a **measurement & visualization** tool. It does not modify, prune, or 
 <td width="50%" align="center"><b>Model MRI · concentric rings</b></td>
 </tr>
 <tr>
-<td width="50%" align="center"><img src="docs/images/dashboard-c500.png" alt="dashboard"></td>
-<td width="50%" align="center"><img src="docs/images/report-mri.png" alt="model MRI"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="dashboard"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-mri.png" alt="model MRI"></td>
 </tr>
 <tr>
 <td width="50%" align="center"><sub>Qwen2.5-7B inference live on MetaX Xiyun C500: heatmap grows left-to-right as tokens are generated (plasma: dark = redundant, bright = active)</sub></td>
@@ -51,8 +51,8 @@ UniVis is a **measurement & visualization** tool. It does not modify, prune, or 
 <td width="50%" align="center"><b>Multi-model comparison</b></td>
 </tr>
 <tr>
-<td width="50%" align="center"><img src="docs/images/report-pulse.png" alt="layer pulse"></td>
-<td width="50%" align="center"><img src="docs/images/report-comparison.png" alt="comparison"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-pulse.png" alt="layer pulse"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-comparison.png" alt="comparison"></td>
 </tr>
 <tr>
 <td width="50%" align="center"><sub>A sparkline per layer: flat = redundant, spiking = active; ThemeRiver shows activity over tokens</sub></td>
@@ -130,7 +130,7 @@ We look forward to collaborating with MetaX and the MXMACA community on test res
 
 <div align="center">
 
-<img src="docs/images/cross-scale.png" alt="cross-scale redundancy" width="92%">
+<img src="https://cookiesheep.github.io/univis/assets/img/cross-scale.png" alt="cross-scale redundancy" width="92%">
 
 <sub>Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B (hybrid), ~54× parameter span. With layer depth normalized to [0,1], the middle segment shows markedly higher cosine similarity than shallow/deep layers in all four models.</sub>
 

@@ -23,7 +23,7 @@
 
 </div>
 
-<img src="docs/images/dashboard-c500.png" alt="UniVis Dashboard" width="100%">
+<img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="UniVis Dashboard" width="100%">
 
 UniVis 通过 `forward` hook 零侵入地附着在任意 PyTorch / HuggingFace Transformer 上，在**端侧（hook 内部）**把每层激活降维为标量指标（单步仅约 1–2 KB），经 JSONL / WebSocket 输出实时 Dashboard 或自包含离线 HTML 报告，回答一个问题：**推理时，哪些层在真正计算，哪些层在冗余。**
 
@@ -39,8 +39,8 @@ UniVis 是**度量与可视化**工具——不修改、不剪枝、不加速你
 <td width="50%" align="center"><b>模型 MRI · 同心环</b></td>
 </tr>
 <tr>
-<td width="50%" align="center"><img src="docs/images/dashboard-c500.png" alt="dashboard"></td>
-<td width="50%" align="center"><img src="docs/images/report-mri.png" alt="model MRI"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="dashboard"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-mri.png" alt="model MRI"></td>
 </tr>
 <tr>
 <td width="50%" align="center"><sub>Qwen2.5-7B 实时推理于沐曦曦云 C500：热力图随 token 生成从左到右动态生长（plasma：暗=冗余，亮=活跃）</sub></td>
@@ -51,8 +51,8 @@ UniVis 是**度量与可视化**工具——不修改、不剪枝、不加速你
 <td width="50%" align="center"><b>多模型对比报告</b></td>
 </tr>
 <tr>
-<td width="50%" align="center"><img src="docs/images/report-pulse.png" alt="layer pulse"></td>
-<td width="50%" align="center"><img src="docs/images/report-comparison.png" alt="comparison"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-pulse.png" alt="layer pulse"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-comparison.png" alt="comparison"></td>
 </tr>
 <tr>
 <td width="50%" align="center"><sub>每层一个迷你波形：平线=冗余、尖峰=活跃；ThemeRiver 展示活跃度随 token 流动</sub></td>
@@ -130,7 +130,7 @@ UniVis 的全部诊断产出——JSONL 原始数据、自包含 HTML 报告、�
 
 <div align="center">
 
-<img src="docs/images/cross-scale.png" alt="cross-scale redundancy" width="92%">
+<img src="https://cookiesheep.github.io/univis/assets/img/cross-scale.png" alt="cross-scale redundancy" width="92%">
 
 <sub>Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B（hybrid），参数跨度约 54 倍。层深度归一化到 [0,1] 后，四个模型的中间段余弦相似度都明显高于浅层与深层。</sub>
 

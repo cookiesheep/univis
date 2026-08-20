@@ -5,13 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UniVis · Transformer 推理冗余诊断 — 真机证据画廊</title>
 <meta name="description" content="UniVis：零侵入诊断大模型推理时哪些层在真正计算、哪些在冗余。沐曦曦云 C500 与 NVIDIA L20 真机证据，无卡可审计。">
+<meta name="color-scheme" content="dark light">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2308090d'/%3E%3Ccircle cx='10' cy='20' r='4' fill='%237e03a8'/%3E%3Ccircle cx='19' cy='13' r='4' fill='%23cc4778'/%3E%3Ccircle cx='24' cy='22' r='3' fill='%23f0f921'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,500;9..40,700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script>
+/* theme boot before first paint (no flash) */
+(function () {
+  var t = null;
+  try { t = localStorage.getItem('univis-theme'); } catch (e) {}
+  if (t !== 'dark' && t !== 'light') {
+    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 </head>
 <body>
+<canvas id="bgCanvas" aria-hidden="true"></canvas>
+
 <nav class="nav" aria-label="主导航">
   <a class="brand" href="#top"><span class="brand-dot" aria-hidden="true"></span>UniVis<span class="brand-sub">/ 推理冗余诊断</span></a>
   <div class="nav-links">
@@ -21,12 +35,16 @@
     <a href="#earlyexit">early-exit</a>
     <a href="#honest">负结果</a>
     <a href="#contract">契约</a>
+    <a href="#ack">真机硬件</a>
+    <button id="themeToggle" class="theme-btn" aria-label="切换亮色/暗色模式" title="切换亮色/暗色">
+      <svg class="ic-moon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 9.5A6 6 0 1 1 6.5 2.5a5 5 0 0 0 7 7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <svg class="ic-sun" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3.2" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.8 2.8l1.4 1.4M11.8 11.8l1.4 1.4M13.2 2.8l-1.4 1.4M4.2 11.8l-1.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+    </button>
   </div>
 </nav>
 
 <!-- ============ HERO ============ -->
 <header id="top" class="hero">
-  <div class="hero-grid" aria-hidden="true"></div>
   <div class="hero-inner">
     <p class="kicker reveal">AI Infra · 大模型推理优化与部署 · MIT 开源</p>
     <h1 class="reveal">看见大模型推理时<br><em>哪些层在真正计算</em>，<span class="dim">哪些在冗余。</span></h1>
@@ -50,7 +68,7 @@
       <div><dt>跨硬件画像一致性</dt><dd>r = 1.0000</dd></div>
       <div><dt>验证规模</dt><dd>0.5B → 27B <span class="dim">(54×)</span></dd></div>
       <div><dt>单元测试</dt><dd>83 · CI 全绿</dd></div>
-      <div><dt>PyPI</dt><dd>v0.6.0</dd></div>
+      <div><dt>PyPI</dt><dd>pip install univis</dd></div>
     </dl>
   </div>
 </header>
@@ -62,9 +80,10 @@
     <p class="kicker">01 · 真机报告画廊</p>
     <h2>每一份报告，都是可以在浏览器里直接复核的证据</h2>
     <p class="lede">全部报告由仓库内提交的 JSONL 原始数据渲染，自包含单文件、无需任何 GPU 即可打开——
-    我们称之为<b>「无卡可审计」</b>：诊断工具本身就是证据链。</p>
+    我们称之为<b>「无卡可审计」</b>：诊断工具本身就是证据链。<span class="hint">悬停卡片可预览，点击打开完整报告。</span></p>
   </div>
   <div class="report-grid" id="reportGrid"><!-- JS 注入 --></div>
+  <div id="thumbPreview" class="thumb-preview" aria-hidden="true"><img alt=""><span class="tp-cap mono"></span></div>
   <p class="footnote reveal">指纹缩写：C500 = MetaX 曦云 C500（16GB sGPU 切分 · MXMACA 3.3.0.15 · torch 2.8.0+metax3.3.0.2）；
   L20 = NVIDIA L20 48GB（torch 2.10.0+cu128 · transformers 4.57.6）。报告打开后右上角可见完整会话信息。多提示词集（0.5B×10 提示词、TinyLlama）报告因采集端一处已修复的缺陷暂缓上廊，C500 侧重采后恢复。</p>
 </section>
@@ -205,6 +224,39 @@
         <p>租「曦云 C500 + PyTorch 2.8.0」官方镜像实例，<span class="mono">pip install univis</span>（或克隆仓库），注意不要用公版 torch 覆盖镜像里的 +metax 适配版。完整步骤见仓库 docs/mxmaca/phase-a/README.md。</p></details>
       <details><summary>接入我的模型要改多少代码？</summary>
         <p>两行：<span class="mono">tracker = univis.attach(model)</span> 与 <span class="mono">model.generate(..., logits_processor=[tracker.logits_processor(tok)])</span>。架构按 config 自动识别。</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ACK ============ -->
+<section id="ack" class="section alt">
+  <div class="section-head reveal">
+    <p class="kicker">08 · 真机硬件与生态</p>
+    <h2>在国产 GPU 上，它是真的能跑</h2>
+  </div>
+  <div class="ack-grid">
+    <div class="ack-card reveal">
+      <h3>MetaX 曦云 C500</h3>
+      <ul class="mono-list">
+        <li>自研 XCORE 架构 GPGPU，面向 AI 训练与推理</li>
+        <li>64GB HBM2e 高带宽显存（本站证据采集自其 16GB sGPU 切分实例）</li>
+        <li>MXMACA 软件栈：mcPyTorch 即 torch +metax 适配版，高度兼容 CUDA 生态用法</li>
+        <li>FP32 / TF32 / FP16 / BF16 / INT8 精度支持</li>
+      </ul>
+    </div>
+    <div class="ack-card reveal">
+      <h3>UniVis 在 C500 上的实测</h3>
+      <ul class="mono-list">
+        <li>零代码修改跑通全链路诊断（阶段 A）</li>
+        <li>0.5B / 3B / 7B 冗余画像与 NVIDIA L20 一致（10 提示词 r = 1.0000）</li>
+        <li>7B bf16（15.3GB）在 16GB sGPU 切分实例上完整运行</li>
+        <li>全流程环境指纹与原始数据随仓库公开，无卡可审计</li>
+      </ul>
+    </div>
+    <div class="ack-card reveal">
+      <h3>平台与生态</h3>
+      <p>真机验证在 <b>Gitee AI（模力方舟）平台</b>按小时租用的曦云 C500 实例上完成——从下单到出第一份国产卡诊断报告不到两小时，即租即用的国产算力体验流畅可靠。</p>
+      <p>下一步，我们期待 UniVis 深度参与 MXMACA 生态：把冗余定位结论对接 FlagGems / mcTriton 算子优化（路线图阶段 C），让「先测量、再优化」的流程在国产栈上完整闭环。</p>
     </div>
   </div>
 </section>
