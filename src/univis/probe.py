@@ -29,7 +29,7 @@ class ModelProbe:
         self._metric_fns = metric_fns or {
             'relative_delta': relative_delta_tensor,
             'cosine_sim': cosine_sim_tensor,
-            'sparsity': sparsity_tensor,
+            'sparsity': lambda inp, out: sparsity_tensor(out),
         }
         self._register_hooks(hook_prefixes)
 
@@ -85,8 +85,10 @@ class ModelProbe:
             metric_keys = [k for k in data[0] if k not in ('idx', 'name')]
             tensor_keys = [k for k in metric_keys if isinstance(data[0][k], torch.Tensor)]
             if tensor_keys:
-                # one [layers x metrics] device->host transfer -> one sync per step
-                flat = torch.stack([torch.stack([d[k] for k in tensor_keys]) for d in data])
+                # one [layers x metrics] device->host transfer -> one sync per step;
+                # tensors may live on different devices under device_map='auto'
+                ref_dev = data[0][tensor_keys[0]].device
+                flat = torch.stack([torch.stack([d[k].to(ref_dev) for k in tensor_keys]) for d in data])
                 on_cpu = flat.cpu().tolist()
                 for entry, row in zip(data, on_cpu):
                     for k, v in zip(tensor_keys, row):

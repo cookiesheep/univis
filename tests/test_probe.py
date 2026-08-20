@@ -85,6 +85,35 @@ class TestProbe:
             assert isinstance(entry['relative_delta'], float)
         probe.remove_hooks()
 
+    def test_sparsity_uses_output_only(self) -> None:
+        """Regression: sparsity must be computed on hidden_out alone, not as a
+        threshold against hidden_in (signature drift silently produced garbage
+        under single-device runs)."""
+        from univis.metrics import sparsity_tensor
+
+        class Passthrough(nn.Module):
+            def forward(self, x):
+                return (x,)
+
+        class OneLayer(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.layers = nn.ModuleList([Passthrough()])
+
+            def forward(self, x):
+                return self.layers[0](x)[0]
+
+        model = OneLayer()
+        probe = ModelProbe(model, ['layers.'])
+        x = torch.tensor([[[0.0, 5.0, -0.0, 3.0]]])  # hidden_out == x: 2 of 4 near zero
+        with torch.no_grad():
+            model(x)
+        data = probe.flush_step(0)
+        assert abs(data[0]['sparsity'] - 0.5) < 1e-6
+
+        # direct signature guard: sparsity_tensor takes (tensor[, threshold])
+        assert abs(sparsity_tensor(torch.tensor([[0.0, 1.0]])) - 0.5) < 1e-6
+
     def test_hooks_removed_cleanly(self) -> None:
         model = FakeGPT2(n_layers=2)
         probe = ModelProbe(model, ['transformer.h.'])

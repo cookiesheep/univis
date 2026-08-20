@@ -16,11 +16,19 @@ def _last_token(t: torch.Tensor) -> torch.Tensor:
     return t[:, -1, :] if t.dim() == 3 else t
 
 
+def _same_device(a: torch.Tensor, b: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Align devices for pairwise ops (layer IO can straddle GPUs under device_map)."""
+    if a.device != b.device:
+        b = b.to(a.device)
+    return a, b
+
+
 def relative_delta_tensor(
     input_tensor: torch.Tensor,
     output_tensor: torch.Tensor,
 ) -> torch.Tensor:
     """Relative L2 change as 0-dim tensor: ||output - input|| / ||input||."""
+    input_tensor, output_tensor = _same_device(input_tensor, output_tensor)
     delta = _last_token(output_tensor - input_tensor).float()
     inp = _last_token(input_tensor).float()
     norm_delta = delta.norm(dim=-1)
@@ -37,6 +45,7 @@ def cosine_sim_tensor(
     output_tensor: torch.Tensor,
 ) -> torch.Tensor:
     """Cosine similarity between input and output as 0-dim tensor."""
+    input_tensor, output_tensor = _same_device(input_tensor, output_tensor)
     a = _last_token(input_tensor).float()
     b = _last_token(output_tensor).float()
     if a.dim() == 1:

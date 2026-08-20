@@ -127,10 +127,10 @@
     { f: 'l20_3B.html', hw: 'l20', m: 'Qwen2.5-3B', note: '36 层 · r = 1.0000 · MAE 0.0007' },
     { f: 'c500_7B.html', hw: 'c500', m: 'Qwen2.5-7B', note: '15.3GB bf16 跑通 16GB 切分实例 · 28 层' },
     { f: 'l20_7B.html', hw: 'l20', m: 'Qwen2.5-7B', note: 'r = 1.0000 · MAE 0.0005（三规模最紧）' },
-    { f: 'c500_0.5B_multi.html', hw: 'c500', m: 'Qwen2.5-0.5B · 10 提示词', note: '多提示词协议 · 约 500 步聚合' },
-    { f: 'l20_0.5B_multi.html', hw: 'l20', m: 'Qwen2.5-0.5B · 10 提示词', note: '多提示词协议 · r = 1.0000' },
-    { f: 'c500_tinyllama.html', hw: 'c500', m: 'TinyLlama-1.1B', note: 'Llama 架构跨架构检验 · 22 层 · r = 0.9968' },
-    { f: 'l20_tinyllama.html', hw: 'l20', m: 'TinyLlama-1.1B', note: 'Llama 架构 · 与 C500 侧对照' },
+    
+    
+    
+    
   ];
   var grid = document.getElementById('reportGrid');
   if (grid) {
