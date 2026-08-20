@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UniVis · Transformer 推理冗余诊断 — 真机证据画廊</title>
+<meta name="description" content="UniVis：零侵入诊断大模型推理时哪些层在真正计算、哪些在冗余。沐曦曦云 C500 与 NVIDIA L20 真机证据，无卡可审计。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2308090d'/%3E%3Ccircle cx='10' cy='20' r='4' fill='%237e03a8'/%3E%3Ccircle cx='19' cy='13' r='4' fill='%23cc4778'/%3E%3Ccircle cx='24' cy='22' r='3' fill='%23f0f921'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,500;9..40,700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="nav" aria-label="主导航">
+  <a class="brand" href="#top"><span class="brand-dot" aria-hidden="true"></span>UniVis<span class="brand-sub">/ 推理冗余诊断</span></a>
+  <div class="nav-links">
+    <a href="#gallery">报告画廊</a>
+    <a href="#crosshw">跨硬件一致</a>
+    <a href="#timeline">C500 实录</a>
+    <a href="#earlyexit">early-exit</a>
+    <a href="#honest">负结果</a>
+    <a href="#contract">契约</a>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header id="top" class="hero">
+  <div class="hero-grid" aria-hidden="true"></div>
+  <div class="hero-inner">
+    <p class="kicker reveal">AI Infra · 大模型推理优化与部署 · MIT 开源</p>
+    <h1 class="reveal">看见大模型推理时<br><em>哪些层在真正计算</em>，<span class="dim">哪些在冗余。</span></h1>
+    <p class="lede reveal">UniVis 用零侵入 forward hook 在端侧把每层激活压缩为 5 项标量指标（单步 1–2 KB），
+    产出实时热力图与自包含报告。下面的热力图不是动画素材——是 <b>Qwen2.5-7B 在沐曦曦云 C500 上真实生成的 478 个 token × 28 层遥测回放</b>。</p>
+    <div class="hero-canvas-wrap reveal">
+      <canvas id="heroCanvas" width="1200" height="420" role="img"
+        aria-label="Qwen2.5-7B 在 MetaX C500 上的逐层活跃度热力图，颜色由暗到亮表示该层对该 token 的改变幅度"></canvas>
+      <div class="hero-readout" aria-hidden="true">
+        <span class="mono" id="roToken">token 000/478</span>
+        <span class="mono" id="roState">replaying…</span>
+      </div>
+      <p class="hero-cap mono">live telemetry · Qwen2.5-7B · MetaX Xiyun C500 (MXMACA) · greedy · data committed in-repo</p>
+    </div>
+    <div class="cta reveal">
+      <a class="btn primary" href="https://github.com/cookiesheep/univis" rel="noopener">GitHub 仓库</a>
+      <a class="btn" href="#gallery">查看真机报告（无卡可审计）</a>
+      <button class="btn ghost mono" id="pipBtn" title="点击复制">pip install univis</button>
+    </div>
+    <dl class="hero-stats reveal">
+      <div><dt>跨硬件画像一致性</dt><dd>r = 1.0000</dd></div>
+      <div><dt>验证规模</dt><dd>0.5B → 27B <span class="dim">(54×)</span></dd></div>
+      <div><dt>单元测试</dt><dd>82 · CI 全绿</dd></div>
+      <div><dt>PyPI</dt><dd>v0.6.0</dd></div>
+    </dl>
+  </div>
+</header>
+
+<main>
+<!-- ============ GALLERY ============ -->
+<section id="gallery" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">01 · 真机报告画廊</p>
+    <h2>每一份报告，都是可以在浏览器里直接复核的证据</h2>
+    <p class="lede">全部报告由仓库内提交的 JSONL 原始数据渲染，自包含单文件、无需任何 GPU 即可打开——
+    我们称之为<b>「无卡可审计」</b>：诊断工具本身就是证据链。</p>
+  </div>
+  <div class="report-grid" id="reportGrid"><!-- JS 注入 --></div>
+  <p class="footnote reveal">指纹缩写：C500 = MetaX 曦云 C500（16GB sGPU 切分 · MXMACA 3.3.0.15 · torch 2.8.0+metax3.3.0.2）；
+  L20 = NVIDIA L20 48GB（torch 2.10.0+cu128 · transformers 4.57.6）。报告打开后右上角可见完整会话信息。</p>
+</section>
+
+<!-- ============ CROSS-HW ============ -->
+<section id="crosshw" class="section alt">
+  <div class="section-head reveal">
+    <p class="kicker">02 · 跨硬件一致性</p>
+    <h2>同一模型，两种硬件，几乎相同的冗余画像</h2>
+    <p class="lede">同模型、同提示词、同解码协议（greedy · bf16 · 50 token），分别在沐曦 C500 与 NVIDIA L20 上诊断。
+    10 条多样化提示词协议下，Qwen2.5 三个规模的层级冗余画像 Pearson r = 1.0000——
+    <b>在一种硬件上得出的冗余结论，可以直接迁移到另一种硬件</b>。跨架构同样成立（TinyLlama-1.1B / Llama 架构，r = 0.9968）。</p>
+  </div>
+  <div class="rtable reveal">
+    <table>
+      <thead><tr><th>模型</th><th>架构</th><th>r（余弦画像）</th><th>r（Relative Delta）</th><th>MAE</th></tr></thead>
+      <tbody>
+        <tr><td>Qwen2.5-0.5B</td><td>Qwen2</td><td>1.0000</td><td>1.0000</td><td>0.0008</td></tr>
+        <tr><td>Qwen2.5-3B</td><td>Qwen2</td><td>1.0000</td><td>1.0000</td><td>0.0007</td></tr>
+        <tr><td>Qwen2.5-7B</td><td>Qwen2</td><td>1.0000</td><td>1.0000</td><td>0.0005</td></tr>
+        <tr class="hl"><td>TinyLlama-1.1B</td><td>Llama</td><td>0.9968</td><td>0.9998</td><td>0.0040</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="chart-pair">
+    <figure class="reveal"><img src="assets/img/cross_hw_0.5B.png" alt="0.5B 跨硬件冗余画像对比" loading="lazy" decoding="async">
+      <figcaption>Qwen2.5-0.5B · 24 层</figcaption></figure>
+    <figure class="reveal"><img src="assets/img/cross_hw_3B.png" alt="3B 跨硬件冗余画像对比" loading="lazy" decoding="async">
+      <figcaption>Qwen2.5-3B · 36 层</figcaption></figure>
+    <figure class="reveal"><img src="assets/img/cross_hw_7B.png" alt="7B 跨硬件冗余画像对比" loading="lazy" decoding="async">
+      <figcaption>Qwen2.5-7B · 28 层</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============ SCALE ============ -->
+<section id="scale" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">03 · 跨规模实证</p>
+    <h2>中间层冗余最显著——0.5B 到 27B 稳定成立</h2>
+    <p class="lede">参数跨度约 54 倍（Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B hybrid）。层深度归一化后，
+    四个模型的中间段余弦相似度都明显高于浅层与深层：<b>冗余集中在模型的「腰上」</b>。</p>
+  </div>
+  <figure class="bigfig reveal">
+    <img src="assets/img/cross-scale.png" alt="跨规模冗余画像：0.5B 到 27B 中间层冗余最显著" loading="lazy" decoding="async">
+  </figure>
+</section>
+
+<!-- ============ TIMELINE ============ -->
+<section id="timeline" class="section alt">
+  <div class="section-head reveal">
+    <p class="kicker">04 · MXMACA 适配实录</p>
+    <h2>一个租来的夜晚：C500 上的一夜冲刺</h2>
+    <p class="lede">2026-08-19 晚，在 Gitee AI 模力方舟按小时租用曦云 C500（16GB sGPU 切分），
+    从零代码修改跑通到跨硬件实证、再到工具自身的性能修复，全部在一个实例生命周期内完成。</p>
+  </div>
+  <ol class="tl" id="tl">
+    <li class="reveal"><span class="tl-time mono">22:36</span><div><h3>实例就位</h3><p>租下曦云 C500 切分实例（¥1/时），官方 MACA 3.x + PyTorch 2.8.0 镜像。环境指纹三件套（mx-smi / torch 版本 / 系统信息）先行留档。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">22:53</span><div><h3>阶段 A · 通路验证</h3><p>Qwen2.5-0.5B 完整生成，<b>零代码修改</b>挂上全部 24 层 hook，384 步指标全量采集，自包含 HTML 报告与 JSONL 落盘。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">23:07</span><div><h3>阶段 B · 三规模对照</h3><p>0.5B / 3B / 7B 与 NVIDIA L20 同协议对照，画像一致性 r ≥ 0.9998。意外收获：7B（bf16 权重 15.3GB）在 16GB 切分实例上完整跑通。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">23:18</span><div><h3>方法学加固</h3><p>L20 间隔两月重跑稳定性验证 r ≥ 0.9985——排除运行噪声，跨硬件差异只能来自数值栈。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">23:30</span><div><h3>early-exit 首轮 · 一个负结果</h3><p>朴素逐 token 熵阈值 100% 过早截断。逐 token 熵序列追踪定位根因：格式化 token 形成散布全答案的超低熵簇（&lt;0.05 nats）。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">23:40</span><div><h3>窗口判据 · 把负结果变功能</h3><p>实现 entropy_window（连续 N 步低熵才退出）。24 提示词复测得到单调可控权衡曲线——负结果公开入库，修复成为 v0.6.0 功能。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">23:52</span><div><h3>给工具自己治病</h3><p>实测发现 hook 采集在多层数模型上拖慢生成 4–5 倍。重构为设备端张量化 + 每步单次批量回传：+400% → 约 +55%，指标数值逐位不变（MAE = 0.0000）。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">00:12</span><div><h3>实时演示 + v0.6.0</h3><p>Qwen2.5-7B 经 SSH 隧道实时驱动 Dashboard，热力图逐 token 生长——本站 hero 即其截图数据。随后多提示词 r = 1.0000、TinyLlama 跨架构、v0.6.0 发布。</p></div></li>
+  </ol>
+</section>
+
+<!-- ============ EARLY-EXIT ============ -->
+<section id="earlyexit" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">05 · Pilot early-exit</p>
+    <h2>把度量变成行动：可调的「质量—算力」旋钮</h2>
+    <p class="lede">当模型连续多步足够自信时提前结束生成。横轴为熵阈值（log 刻度），纵轴为生成的 token 数（% 相对基线）——
+    曲线上的每一点都是 C500 上的真实测量（24 条多样化提示词，窗口 = 5）。</p>
+  </div>
+  <div class="ee-wrap reveal">
+    <div class="ee-controls" role="tablist" aria-label="选择模型">
+      <button class="pill active" data-model="q05" role="tab" aria-selected="true">Qwen2.5-0.5B</button>
+      <button class="pill" data-model="q3" role="tab" aria-selected="false">Qwen2.5-3B</button>
+    </div>
+    <canvas id="eeChart" width="960" height="420" role="img" aria-label="熵阈值与生成 token 占比的权衡曲线"></canvas>
+    <p class="mono" id="eeTip">悬停查看每个阈值的取舍</p>
+  </div>
+</section>
+
+<!-- ============ HONEST ============ -->
+<section id="honest" class="section alt">
+  <div class="section-head reveal">
+    <p class="kicker">06 · 公开的负结果</p>
+    <h2>我们错过的一次，以及为什么把它写进 README</h2>
+    <p class="lede">Pilot v1 曾按「高余弦相似度 = 可跳过」的直觉直接跳过中间冗余层。Qwen2.5-7B 实测：</p>
+  </div>
+  <div class="honest-table reveal">
+    <table>
+      <thead><tr><th>配置</th><th>perplexity</th><th>变化</th></tr></thead>
+      <tbody>
+        <tr><td>基线（全部层）</td><td>13.81</td><td>—</td></tr>
+        <tr class="bad"><td>跳过中间「冗余」层</td><td>105.67</td><td>+665%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="lede reveal">结论：残差架构里余弦相似度饱和 ≠ 这层没用，「看似冗余」的层仍承担必要的细化计算。
+  完整记录随 commit <span class="mono">1938d60</span> 公开，Pilot 转向基于置信度的 early-exit。
+  <b>公开纠错是我们可信度的一部分。</b></p>
+</section>
+
+<!-- ============ CONTRACT / FAQ ============ -->
+<section id="contract" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">07 · 精确支持契约</p>
+    <h2>验证了什么，就说什么</h2>
+  </div>
+  <div class="contract-grid">
+    <div class="reveal">
+      <h3>已实测</h3>
+      <ul class="mono-list">
+        <li>Qwen2.5-0.5B / 3B / 7B-Instruct（bf16）· C500 + L20 双侧</li>
+        <li>TinyLlama-1.1B（Llama 架构）· 双侧</li>
+        <li>Qwen3.6-27B（hybrid）· L20 单侧</li>
+        <li>torch 2.8.0+metax3.3.0.2 / MACA 3.3.0.15 / transformers 4.57.x</li>
+        <li>82 项单元测试 · CPU 环境全量运行</li>
+      </ul>
+    </div>
+    <div class="reveal">
+      <h3>边界声明</h3>
+      <ul class="mono-list">
+        <li>冗余结论不外推到未测模型</li>
+        <li>27B 级 C500 整机对照：计划 2026-10</li>
+        <li>Attention / FFN 子层粒度：路线图中期</li>
+        <li>early-exit 质量度量当前为 token 级保留率，任务级正确性评估进行中</li>
+      </ul>
+    </div>
+    <div class="reveal faq">
+      <h3>FAQ</h3>
+      <details><summary>「无卡可审计」是什么意思？</summary>
+        <p>仓库内提交了每次实验的 JSONL 原始数据与环境指纹；本画廊的报告全部由这些数据渲染，任何人在任何电脑上打开即可复核——不需要租 GPU。</p></details>
+      <details><summary>怎么在沐曦卡上复现？</summary>
+        <p>租「曦云 C500 + PyTorch 2.8.0」官方镜像实例，<span class="mono">pip install univis</span>（或克隆仓库），注意不要用公版 torch 覆盖镜像里的 +metax 适配版。完整步骤见仓库 docs/mxmaca/phase-a/README.md。</p></details>
+      <details><summary>接入我的模型要改多少代码？</summary>
+        <p>两行：<span class="mono">tracker = univis.attach(model)</span> 与 <span class="mono">model.generate(..., logits_processor=[tracker.logits_processor(tok)])</span>。架构按 config 自动识别。</p></details>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="footer">
+  <p class="mono">UniVis · MIT License · <a href="https://github.com/cookiesheep/univis" rel="noopener">GitHub</a> ·
+  <a href="https://pypi.org/project/univis/" rel="noopener">PyPI</a> ·
+  <a href="https://github.com/cookiesheep/univis/issues" rel="noopener">Issues</a></p>
+  <p class="dim">所有实验数据与证据以仓库为准；本页热力图与曲线均为真实遥测，未经美化。</p>
+</footer>
+
+<script src="assets/hero_data.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
