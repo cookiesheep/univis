@@ -149,11 +149,14 @@ Conclusion: saturated cosine similarity ≠ useless layer; "apparently redundant
 
 Same model, same prompt, same decoding protocol (greedy / bf16 / 50 tokens) on both MetaX Xiyun C500 and NVIDIA L20; per-layer redundancy profiles correlate at:
 
-| Model | r (cosine profile) | r (relative-delta profile) |
-|---|---|---|
-| Qwen2.5-0.5B | 0.9998 | 1.0000 |
-| Qwen2.5-3B | 1.0000 | 1.0000 |
-| Qwen2.5-7B | 1.0000 | 1.0000 |
+| Model | Architecture | r (cosine profile) | r (relative-delta profile) |
+|---|---|---|---|
+| Qwen2.5-0.5B | Qwen2 | 0.9998 → 1.0000 | 1.0000 |
+| Qwen2.5-3B | Qwen2 | 1.0000 | 1.0000 |
+| Qwen2.5-7B | Qwen2 | 1.0000 | 1.0000 |
+| TinyLlama-1.1B | Llama | 0.9968 | 0.9998 |
+
+(right of the arrow: retest over 10 diverse prompts; TinyLlama is the cross-architecture portability check)
 
 Within this tested scope, "which layers are redundant" transfers across hardware — no re-derivation per GPU needed. Methodology and full data: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md). The same C500 session also drove a fix to UniVis itself: hook overhead went from +400~486% on many-layer models (per-layer device syncs amplified) down to ~+55% (one batched transfer per step) with bit-identical metric values — measure first, then optimize.
 
