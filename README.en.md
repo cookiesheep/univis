@@ -8,6 +8,8 @@
 
 `AI Infra · LLM inference optimization & deployment`
 
+[![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
+[![PyPI Downloads](https://img.shields.io/pypi/dm/univis.svg)](https://pypistats.org/packages/univis)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-82-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -56,6 +58,7 @@ UniVis is a **measurement & visualization** tool. It does not modify, prune, or 
 </tr>
 </table>
 
+<!-- TODO(phase 2): online gallery entry — add the live report-preview link at the end of the Showcase section once the service ships -->
 ## Why UniVis
 
 Transformer inference cost and memory grow explosively with parameter count, yet not every layer or generation step contributes equally — saving compute means saving money, which matters all the more when accelerator capacity is scarce. Before optimizing, you need to know where the redundancy is. Existing tools look elsewhere:
@@ -165,8 +168,7 @@ Within this tested scope, "which layers are redundant" transfers across hardware
 ## Quick start
 
 ```bash
-git clone https://github.com/cookiesheep/univis && cd univis
-pip install -e ".[dev]"
+pip install univis
 ```
 
 **A · Offline report (minimal)**
@@ -199,6 +201,13 @@ python your_script.py               # terminal 3: inference with transport="webs
 
 Three CLI entry points: `univis serve` (live server), `univis report` (JSONL → HTML), `univis compare` (multi-model comparison).
 
+**Development install** (contributors):
+
+```bash
+git clone https://github.com/cookiesheep/univis && cd univis
+pip install -e ".[dev]"
+```
+
 ## Architecture
 
 ```
@@ -226,7 +235,7 @@ Three layers: the collection SDK (detection / probe / metrics / transport / trac
 
 - **82 unit tests** (8 test files) covering the SDK, server, report generation, the three-terminal pipeline, and Pilot — `pytest tests/` fully green;
 - **GitHub Actions CI**: every push runs the full suite on Python 3.10 / 3.12 with CPU torch;
-- full type hints on Python ≥ 3.10; 10 SDK modules; public API exported from `__init__.py`.
+- **Published on PyPI**: `pip install univis`; full type hints on Python ≥ 3.10; 10 SDK modules; public API exported from `__init__.py`.
 
 ```
 src/univis/      Python SDK — attach() → on_step() → finish()

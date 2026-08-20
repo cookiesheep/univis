@@ -9,6 +9,18 @@ description = "Transformer inference redundancy diagnostic and visualization too
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+keywords = [
+    "transformer",
+    "llm",
+    "inference",
+    "redundancy",
+    "observability",
+    "profiling",
+    "visualization",
+    "mxmaca",
+    "domestic-gpu",
+    "edge-computing",
+]
 dependencies = [
     "torch>=2.0",
     "numpy",
@@ -49,6 +61,8 @@ dashboard = []  # Separate npm project in dashboard/
 [project.urls]
 Homepage = "https://github.com/cookiesheep/univis"
 Repository = "https://github.com/cookiesheep/univis"
+Changelog = "https://github.com/cookiesheep/univis/releases"
+Issues = "https://github.com/cookiesheep/univis/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

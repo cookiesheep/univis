@@ -8,6 +8,8 @@
 
 `AI Infra · 大模型推理优化与部署`
 
+[![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
+[![PyPI Downloads](https://img.shields.io/pypi/dm/univis.svg)](https://pypistats.org/packages/univis)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-82-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -56,6 +58,7 @@ UniVis 是**度量与可视化**工具——不修改、不剪枝、不加速你
 </tr>
 </table>
 
+<!-- TODO(阶段2): 在线画廊入口 —— report 在线预览服务上线后，在此处「效果展示」末尾补充链接 -->
 ## 为什么需要 UniVis
 
 Transformer 推理成本与显存随参数量暴涨，但并非每一层、每个生成步骤贡献相同——省算力就是省钱，这在国产算力资源紧张的当下尤其重要。要优化，先要知道冗余在哪里。现有工具却都看向别处：
@@ -165,8 +168,7 @@ Pilot v1 曾按「高余弦相似度 = 可跳过」的直觉跳过中间冗余�
 ## 快速开始
 
 ```bash
-git clone https://github.com/cookiesheep/univis && cd univis
-pip install -e ".[dev]"
+pip install univis
 ```
 
 **A · 离线报告（最简）**
@@ -199,6 +201,13 @@ python your_script.py               # 终端 3：transport="websocket" 运行推
 
 三个 CLI 入口：`univis serve`（实时服务）、`univis report`（JSONL → HTML）、`univis compare`（多模型对比）。
 
+**开发安装**（贡献者）：
+
+```bash
+git clone https://github.com/cookiesheep/univis && cd univis
+pip install -e ".[dev]"
+```
+
 ## 架构
 
 ```
@@ -226,7 +235,7 @@ python your_script.py               # 终端 3：transport="websocket" 运行推
 
 - **82 项单元测试**（8 个测试文件）覆盖 SDK、server、报告生成、三终端链路与 Pilot，`pytest tests/` 全绿；
 - **GitHub Actions CI**：每次 push 在 Python 3.10 / 3.12 + CPU torch 上自动跑全量测试；
-- Python ≥ 3.10 全类型注解，SDK 10 个模块，公开 API 统一在 `__init__.py` 导出。
+- **已发布 PyPI**：`pip install univis`；Python ≥ 3.10 全类型注解，SDK 10 个模块，公开 API 统一在 `__init__.py` 导出。
 
 ```
 src/univis/      Python SDK —— attach() → on_step() → finish()
