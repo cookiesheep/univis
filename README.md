@@ -13,7 +13,7 @@
 [![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/univis.svg)](https://pypistats.org/packages/univis)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-82-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-83-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -87,7 +87,7 @@ UniVis 的实现天然面向跨硬件移植，以下事实逐条可查证：
 | 环境 | 硬件 | 状态 | 已验证内容 |
 |---|---|---|---|
 | NVIDIA L20（48GB） | NVIDIA GPU | ✅ **已验证** | Qwen2.5-0.5B / 3B / 7B + 27B 级 hybrid 完整诊断（跨约 54× 参数跨度） |
-| CPU（无 GPU） | — | ✅ **已验证** | 全量 82 项单元测试、离线报告渲染 |
+| CPU（无 GPU） | — | ✅ **已验证** | 全量 83 项单元测试、离线报告渲染 |
 | MetaX 曦云 C500（sGPU 切分实例） | 沐曦 GPU + MXMACA 软件栈 | ✅ **阶段 A + B 已验证** | Qwen2.5-0.5B / 3B / 7B 跨硬件对照（与 NVIDIA L20 画像一致性 r ≥ 0.9998），[证据存档](docs/mxmaca/phase-b/README.md) |
 
 ### 阶段化路线图
@@ -122,7 +122,7 @@ UniVis 的全部诊断产出——JSONL 原始数据、自包含 HTML 报告、�
 - **离线 HTML 报告** —— 单文件、零依赖、可直接打开：模型 MRI 同心环、层级脉冲、ThemeRiver 数据河流、带趋势标注的冗余排名。
 - **多模型对比 CLI** —— `univis compare` 横向比较多个模型的冗余分布，含雷达图与对比表。
 - **Pilot 干预（实验性）** —— 把度量变成行动：基于预测熵的生成提前终止（early-exit）；layer-skip 路线的负结果已完整公开（见下节）。
-- **工程质量** —— 82 项单元测试全绿、GitHub Actions CI、3 个 CLI 入口、Python 3.10+ 全类型注解。
+- **工程质量** —— 83 项单元测试全绿、GitHub Actions CI、3 个 CLI 入口、Python 3.10+ 全类型注解。
 
 ## 实验发现
 
@@ -234,7 +234,7 @@ pip install -e ".[dev]"
 
 ## 工程质量
 
-- **82 项单元测试**（8 个测试文件）覆盖 SDK、server、报告生成、三终端链路与 Pilot，`pytest tests/` 全绿；
+- **83 项单元测试**（8 个测试文件）覆盖 SDK、server、报告生成、三终端链路与 Pilot，`pytest tests/` 全绿；
 - **GitHub Actions CI**：每次 push 在 Python 3.10 / 3.12 + CPU torch 上自动跑全量测试；
 - **已发布 PyPI**：`pip install univis`；Python ≥ 3.10 全类型注解，SDK 10 个模块，公开 API 统一在 `__init__.py` 导出。
 
@@ -243,7 +243,7 @@ src/univis/      Python SDK —— attach() → on_step() → finish()
 dashboard/       React 18 + TypeScript + ECharts 前端
 docs/images/     报告与图表样例
 examples/        可运行示例
-tests/           82 项单元测试
+tests/           83 项单元测试
 ```
 
 ## 路线图

@@ -13,7 +13,7 @@
 [![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/univis.svg)](https://pypistats.org/packages/univis)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-82-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-83-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -87,7 +87,7 @@ UniVis's implementation is inherently portable across hardware — every claim b
 | Environment | Hardware | Status | Verified content |
 |---|---|---|---|
 | NVIDIA L20 (48GB) | NVIDIA GPU | ✅ **verified** | full diagnostics on Qwen2.5-0.5B / 3B / 7B + 27B-class hybrid (~54× parameter span) |
-| CPU (no GPU) | — | ✅ **verified** | full 82-test suite, offline report rendering |
+| CPU (no GPU) | — | ✅ **verified** | full 83-test suite, offline report rendering |
 | MetaX Xiyun C500 (sGPU slice instance) | MetaX GPU + MXMACA stack | ✅ **phases A + B verified** | cross-hardware comparison Qwen2.5-0.5B / 3B / 7B vs. NVIDIA L20 (profile agreement r ≥ 0.9998), [evidence archive](docs/mxmaca/phase-b/README.md) |
 
 ### Staged roadmap
@@ -122,7 +122,7 @@ We look forward to collaborating with MetaX and the MXMACA community on test res
 - **Offline HTML report** — single file, zero dependencies, opens anywhere: model-MRI rings, layer-pulse sparklines, ThemeRiver, redundancy ranking with trend annotations.
 - **Multi-model comparison CLI** — `univis compare` for cross-model redundancy distributions, with radar charts and tables.
 - **Pilot intervention (experimental)** — turning measurement into action: confidence-based early-exit during generation; the negative result of the layer-skip route is fully public (below).
-- **Engineering quality** — 82 unit tests green, GitHub Actions CI, 3 CLI entry points, full type hints on Python 3.10+.
+- **Engineering quality** — 83 unit tests green, GitHub Actions CI, 3 CLI entry points, full type hints on Python 3.10+.
 
 ## Empirical findings
 
@@ -234,7 +234,7 @@ Three layers: the collection SDK (detection / probe / metrics / transport / trac
 
 ## Engineering quality
 
-- **82 unit tests** (8 test files) covering the SDK, server, report generation, the three-terminal pipeline, and Pilot — `pytest tests/` fully green;
+- **83 unit tests** (8 test files) covering the SDK, server, report generation, the three-terminal pipeline, and Pilot — `pytest tests/` fully green;
 - **GitHub Actions CI**: every push runs the full suite on Python 3.10 / 3.12 with CPU torch;
 - **Published on PyPI**: `pip install univis`; full type hints on Python ≥ 3.10; 10 SDK modules; public API exported from `__init__.py`.
 
@@ -243,7 +243,7 @@ src/univis/      Python SDK — attach() → on_step() → finish()
 dashboard/       React 18 + TypeScript + ECharts frontend
 docs/images/     sample reports and charts
 examples/        runnable examples
-tests/           82 unit tests
+tests/           83 unit tests
 ```
 
 ## Roadmap
