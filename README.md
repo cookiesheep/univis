@@ -8,6 +8,8 @@
 
 `AI Infra · 大模型推理优化与部署`
 
+**[🎨 在线画廊](https://cookiesheep.github.io/univis/)——真机报告可在线复核（无需 GPU）· 跨硬件实证 · 交互演示**
+
 [![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/univis.svg)](https://pypistats.org/packages/univis)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
@@ -58,7 +60,6 @@ UniVis 是**度量与可视化**工具——不修改、不剪枝、不加速你
 </tr>
 </table>
 
-<!-- TODO(阶段2): 在线画廊入口 —— report 在线预览服务上线后，在此处「效果展示」末尾补充链接 -->
 ## 为什么需要 UniVis
 
 Transformer 推理成本与显存随参数量暴涨，但并非每一层、每个生成步骤贡献相同——省算力就是省钱，这在国产算力资源紧张的当下尤其重要。要优化，先要知道冗余在哪里。现有工具却都看向别处：

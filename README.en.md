@@ -8,6 +8,8 @@
 
 `AI Infra · LLM inference optimization & deployment`
 
+**[🎨 Online gallery](https://cookiesheep.github.io/univis/) — real-machine reports auditable in-browser (no GPU needed) · cross-hardware evidence · interactive demos**
+
 [![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/univis.svg)](https://pypistats.org/packages/univis)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
@@ -58,7 +60,6 @@ UniVis is a **measurement & visualization** tool. It does not modify, prune, or 
 </tr>
 </table>
 
-<!-- TODO(phase 2): online gallery entry — add the live report-preview link at the end of the Showcase section once the service ships -->
 ## Why UniVis
 
 Transformer inference cost and memory grow explosively with parameter count, yet not every layer or generation step contributes equally — saving compute means saving money, which matters all the more when accelerator capacity is scarce. Before optimizing, you need to know where the redundancy is. Existing tools look elsewhere:
