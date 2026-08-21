@@ -417,14 +417,16 @@
   }
 
   /* ================= report cards + hover preview ================= */
+  /* each card previews a DIFFERENT chart from inside its report — hover
+     previews double as a tour of what a full report contains */
   var REPORTS = [
-    { f: 'c500_phase_a', hw: 'c500', m: 'Qwen2.5-0.5B', note: '阶段 A 通路验证 · 3 提示词 × 128 token · 24 层 × 384 步 · 零代码修改' },
-    { f: 'c500_0.5B', hw: 'c500', m: 'Qwen2.5-0.5B', note: '阶段 B 基线协议 · 50 token · 与 L20 同题对照' },
-    { f: 'l20_0.5B', hw: 'l20', m: 'Qwen2.5-0.5B', note: '阶段 B 基线协议 · 50 token · r = 1.0000' },
-    { f: 'c500_3B', hw: 'c500', m: 'Qwen2.5-3B', note: '36 层 · 6.3GB bf16 · 与 L20 画像一致' },
-    { f: 'l20_3B', hw: 'l20', m: 'Qwen2.5-3B', note: '36 层 · r = 1.0000 · MAE 0.0007' },
-    { f: 'c500_7B', hw: 'c500', m: 'Qwen2.5-7B', note: '15.3GB bf16 跑通 16GB 切分实例 · 28 层' },
-    { f: 'l20_7B', hw: 'l20', m: 'Qwen2.5-7B', note: 'r = 1.0000 · MAE 0.0005（三规模最紧）' },
+    { f: 'c500_phase_a', hw: 'c500', m: 'Qwen2.5-0.5B', note: '阶段 A 通路验证 · 3 提示词 × 128 token · 24 层 × 384 步 · 零代码修改', chart: '模型 MRI 同心环' },
+    { f: 'c500_0.5B', hw: 'c500', m: 'Qwen2.5-0.5B', note: '阶段 B 基线协议 · 50 token · 与 L20 同题对照', chart: '层级脉冲' },
+    { f: 'l20_0.5B', hw: 'l20', m: 'Qwen2.5-0.5B', note: '阶段 B 基线协议 · 50 token · r = 1.0000', chart: '逐层 × 逐 token 热力图' },
+    { f: 'c500_3B', hw: 'c500', m: 'Qwen2.5-3B', note: '36 层 · 6.3GB bf16 · 与 L20 画像一致', chart: 'ThemeRiver 数据河流' },
+    { f: 'l20_3B', hw: 'l20', m: 'Qwen2.5-3B', note: '36 层 · r = 1.0000 · MAE 0.0007', chart: '预测熵轨迹' },
+    { f: 'c500_7B', hw: 'c500', m: 'Qwen2.5-7B', note: '15.3GB bf16 跑通 16GB 切分实例 · 28 层', chart: '冗余排名 treemap' },
+    { f: 'l20_7B', hw: 'l20', m: 'Qwen2.5-7B', note: 'r = 1.0000 · MAE 0.0005（三规模最紧）', chart: '层级画像条带' },
   ];
   var grid = document.getElementById('reportGrid');
   var preview = document.getElementById('thumbPreview');
@@ -450,7 +452,7 @@
         a.addEventListener('mouseenter', function () {
           var img = preview.querySelector('img');
           img.src = a.dataset.thumb;
-          preview.querySelector('.tp-cap').textContent = a.dataset.model + ' · 点击卡片打开完整报告';
+          preview.querySelector('.tp-cap').textContent = a.dataset.model + ' · 预览：' + r.chart + ' · 点击查看完整报告';
           var rect = a.getBoundingClientRect();
           var px = Math.min(Math.max(rect.left, 12), innerWidth - 352);
           var py = rect.bottom + 10;
