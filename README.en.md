@@ -149,6 +149,14 @@ Conclusion: saturated cosine similarity ≠ useless layer; "apparently redundant
 
 **First early-exit tradeoff data (measured on C500, Qwen2.5-0.5B/3B):** naive per-token entropy thresholds are unusable — formatting tokens in chat answers form ultra-low-entropy patches scattered throughout, so any threshold truncates early. A **window criterion** (`entropy_window`: require N consecutive low-entropy steps) restores a monotonic, controllable curve: a conservative setting saves ~9% of tokens while keeping 93% of content; an aggressive one saves 66% while keeping 42% (8 prompts × 128 tokens, greedy). Curve family and raw data: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md).
 
+<div align="center">
+
+<img src="https://cookiesheep.github.io/univis/assets/img/early_exit_tradeoff.png" alt="entropy_window early-exit tradeoff" width="86%">
+
+<sub>Token-saved vs content-kept tradeoff under the `entropy_window` criterion (measured on C500): wider windows (w=8) keep more content at the same saving — monotonic and controllable, no cliff.</sub>
+
+</div>
+
 ### 3. Cross-hardware evidence: redundancy profiles agree between MetaX C500 and NVIDIA L20
 
 Same model, same prompt, same decoding protocol (greedy / bf16 / 50 tokens) on both MetaX Xiyun C500 and NVIDIA L20; per-layer redundancy profiles correlate at:
@@ -161,6 +169,20 @@ Same model, same prompt, same decoding protocol (greedy / bf16 / 50 tokens) on b
 | TinyLlama-1.1B | Llama | 0.9968 | 0.9998 |
 
 (right of the arrow: retest over 10 diverse prompts; TinyLlama is the cross-architecture portability check)
+
+<div align="center">
+
+<table>
+<tr>
+<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_0.5B.png" alt="Qwen2.5-0.5B C500 vs L20"></td>
+<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_3B.png" alt="Qwen2.5-3B C500 vs L20"></td>
+<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_7B.png" alt="Qwen2.5-7B C500 vs L20"></td>
+</tr>
+</table>
+
+<sub>Per-layer cosine profiles at three scales: MetaX C500 (magenta) vs NVIDIA L20 (cyan) overlap layer by layer (r = 1.0000) — "which layers are redundant" transfers across hardware.</sub>
+
+</div>
 
 Within this tested scope, "which layers are redundant" transfers across hardware — no re-derivation per GPU needed. Methodology and full data: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md). The same C500 session also drove a fix to UniVis itself: hook overhead went from +400~486% on many-layer models (per-layer device syncs amplified) down to ~+55% (one batched transfer per step) with bit-identical metric values — measure first, then optimize.
 

@@ -1,0 +1,6 @@
+# Generated artifacts — excluded from repository language statistics
+# (self-contained HTML reports embed the full echarts bundle; hero_data.js
+#  is emitted by a script from recorded telemetry)
+website/assets/reports/*.html linguist-generated=true
+website/assets/hero_data.js linguist-generated=true
+docs/mxmaca/**/*.html linguist-generated=true

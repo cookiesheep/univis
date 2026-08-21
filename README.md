@@ -149,6 +149,14 @@ Pilot v1 曾按「高余弦相似度 = 可跳过」的直觉跳过中间冗余�
 
 **early-exit 首批权衡数据（C500 实测，Qwen2.5-0.5B/3B）**：朴素逐 token 熵阈值不可用——聊天模型的格式化 token 形成散布全答案的超低熵簇，任何阈值都会过早截断；引入**连续窗口判据**（`entropy_window`，连续 N 步低熵才退出）后得到单调可控的权衡曲线：保守档省 ~9% token 保留 93% 内容，激进档省 66% 保留 42%（8 提示词 × 128 token，greedy）。曲线族与原始数据见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md#附带发现-2窗口化-early-exit-首批权衡数据)。
 
+<div align="center">
+
+<img src="https://cookiesheep.github.io/univis/assets/img/early_exit_tradeoff.png" alt="entropy_window early-exit tradeoff" width="86%">
+
+<sub>`entropy_window` 连续窗口判据的「token 节省—内容保留」权衡曲线（C500 实测）：窗口越宽（w=8），同等节省下保留越高，权衡单调可控、无悬崖。</sub>
+
+</div>
+
 ### 3. 跨硬件实证：冗余画像在沐曦 C500 与 NVIDIA L20 上一致
 
 同一模型、同一提示词、同一解码协议（greedy / bf16 / 50 token），分别在 MetaX 曦云 C500 与 NVIDIA L20 上诊断，逐层冗余画像的皮尔逊相关系数：
@@ -161,6 +169,20 @@ Pilot v1 曾按「高余弦相似度 = 可跳过」的直觉跳过中间冗余�
 | TinyLlama-1.1B | Llama | 0.9968 | 0.9998 |
 
 （箭头右侧为 10 条多样化提示词复测值；TinyLlama 为跨架构可移植性检验。）
+
+<div align="center">
+
+<table>
+<tr>
+<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_0.5B.png" alt="Qwen2.5-0.5B C500 vs L20"></td>
+<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_3B.png" alt="Qwen2.5-3B C500 vs L20"></td>
+<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_7B.png" alt="Qwen2.5-7B C500 vs L20"></td>
+</tr>
+</table>
+
+<sub>三个规模的层级余弦相似度画像：沐曦 C500（品红）与 NVIDIA L20（青）逐层几乎重合（r = 1.0000）——「哪些层冗余」的结论跨硬件可迁移。</sub>
+
+</div>
 
 在该测试范围内，「哪些层冗余」的结论跨硬件可迁移——无需为每种 GPU 重新推导。方法学与全部数据见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md)。同轮 C500 实测还驱动了一次工具自身的重要修复：hook 采集开销从旧实现的多层数下 +400~486%（逐层设备同步被放大）优化到 +55% 量级（每步一次批量回传），指标数值逐位不变——「先测量，再优化」正是 UniVis 的用途示范。
 

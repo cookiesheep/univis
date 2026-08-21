@@ -204,38 +204,111 @@
     var padL = 46, padR = 10, padT = 12, padB = 26;
     var cw = (W - padL - padR) / COLS, ch = (H - padT - padB) / ROWS;
 
-    /* "UniVis" cell mask: rasterize the word onto the cell grid, placed in
-       the low-activity (dark/blue) region on the right half */
+    /* heat-signature finale: the word formed BY heat blocks, not font ink —
+       text is rasterized offscreen, sampled on a fine block grid, and every
+       sample becomes a small plasma cell (same colormap as the data above).
+       Stroke cores run hot (yellow), edges cool (magenta), the word leans
+       hotter toward its right end, and an ignition front lights it up */
     var NAME = 'UniVis';
-    var nameMask = []; /* [col, row] cells */
-    (function buildNameMask() {
+    var nameBlocks = null, nameBS = 0, nameMinX = 0, nameMaxX = 0;
+    function buildNameBlocks() {
+      if (nameBlocks) return;
+      var zoneW = (W - padL - padR) * 0.42;
+      var fs = Math.min(H * 0.34, zoneW / 3.1);
+      var font = '700 ' + Math.round(fs) + 'px "DM Sans", Arial, sans-serif';
       var off = document.createElement('canvas');
-      var gw = Math.floor((W - padL - padR) / cw * 0.92);
-      var gh = ROWS;
-      off.width = gw; off.height = gh;
-      var c = off.getContext('2d');
-      c.fillStyle = '#fff';
-      var fs = Math.min(gh * 0.52, 34);
-      c.font = '700 ' + fs + 'px "DM Sans", Arial, sans-serif';
-      c.textBaseline = 'middle';
-      c.textAlign = 'center';
-      c.fillText(NAME, gw / 2, gh / 2 + 1);
-      var img = c.getImageData(0, 0, gw, gh).data;
-      var startCol = Math.floor(COLS * 0.58);
-      var avail = Math.min(gw, COLS - startCol - 2);
-      for (var y = 0; y < gh; y++) {
-        for (var x = 0; x < avail; x++) {
-          if (img[(y * gw + x) * 4 + 3] > 128) {
-            nameMask.push([startCol + x, y]);
+      var octx = off.getContext('2d', { willReadFrequently: true });
+      octx.font = font;
+      var tw = octx.measureText(NAME).width;
+      if (tw > zoneW) {
+        fs = Math.max(24, fs * zoneW / tw);
+        font = '700 ' + Math.round(fs) + 'px "DM Sans", Arial, sans-serif';
+        octx.font = font;
+        tw = octx.measureText(NAME).width;
+      }
+      off.width = Math.ceil(tw) + 8;
+      off.height = Math.ceil(fs * 1.3);
+      octx.font = font;
+      octx.textBaseline = 'middle';
+      octx.fillStyle = '#fff';
+      octx.fillText(NAME, 4, off.height / 2);
+      var img = octx.getImageData(0, 0, off.width, off.height).data;
+      nameBS = Math.max(4, Math.round(H / 105));
+      var bs = nameBS;
+      var cx = padL + (W - padL - padR) * 0.78;
+      var cy = padT + (H - padT - padB) * 0.52;
+      var x0 = cx - off.width / 2, y0 = cy - off.height / 2;
+      var blocks = [];
+      for (var gy = 0; gy + bs <= off.height; gy += bs) {
+        for (var gx = 0; gx + bs <= off.width; gx += bs) {
+          var cov = 0, n = 0;
+          for (var sy = 0; sy < bs; sy += 2) {
+            for (var sx = 0; sx < bs; sx += 2) {
+              cov += img[((gy + sy) * off.width + gx + sx) * 4 + 3];
+              n++;
+            }
           }
+          cov /= n * 255;
+          if (cov < 0.34) continue;
+          var u = (gx + bs / 2) / off.width;
+          var jitter = (((gx + 11) * 73856093) ^ ((gy + 7) * 19349663)) % 997 / 997;
+          if (jitter < 0) jitter += 1;
+          blocks.push({
+            x: x0 + gx,
+            y: y0 + gy,
+            /* coverage + a left→right skew decide the heat level */
+            t: Math.min(1, 0.16 + 0.60 * cov + 0.34 * u),
+            d: u * 0.82 + jitter * 0.15,
+          });
         }
       }
-    })();
-    var nameCellsByCol = {};
-    nameMask.forEach(function (m) {
-      (nameCellsByCol[m[0]] = nameCellsByCol[m[0]] || []).push(m[1]);
-    });
-    var nameCols = Object.keys(nameCellsByCol).map(Number).sort(function (a, b) { return a - b; });
+      nameBlocks = blocks;
+      nameMinX = x0;
+      nameMaxX = x0 + off.width;
+    }
+    function drawName(prog, alpha) {
+      if (prog <= 0 || alpha <= 0) return;
+      buildNameBlocks();
+      if (!nameBlocks.length) return;
+      var cx = padL + (W - padL - padR) * 0.78;
+      var cy = padT + (H - padT - padB) * 0.52;
+      var bs = nameBS;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      var halo = ctx.createRadialGradient(cx, cy, 6, cx, cy, H * 0.46);
+      halo.addColorStop(0, 'rgba(204,71,120,0.20)');
+      halo.addColorStop(1, 'rgba(204,71,120,0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(cx - H, cy - H, H * 2, H * 2);
+      ctx.globalCompositeOperation = 'lighter';
+      var frontX = nameMinX + (nameMaxX - nameMinX) * Math.min(1, prog / 0.97);
+      var core = Math.max(bs - 1.2, bs * 0.7);
+      for (var i = 0; i < nameBlocks.length; i++) {
+        var b = nameBlocks[i];
+        if (prog < b.d) continue;
+        var age = Math.min(1, (prog - b.d) / 0.10);
+        var rgb = plasmaRGB(b.t);
+        /* settled blocks get a soft bloom halo pass */
+        if (age > 0.3) {
+          ctx.globalAlpha = alpha * 0.15;
+          ctx.fillStyle = 'rgb(' + rgb.join(',') + ')';
+          ctx.fillRect(b.x - bs * 0.7, b.y - bs * 0.7, bs * 2.4, bs * 2.4);
+        }
+        /* fresh ignitions flash white-hot, then settle to their plasma color */
+        var w = Math.round(235 * (1 - age));
+        ctx.globalAlpha = alpha * (0.75 + 0.25 * age);
+        ctx.fillStyle = 'rgb(' + Math.min(255, rgb[0] + w) + ',' + Math.min(255, rgb[1] + w) + ',' + Math.min(255, rgb[2] + w) + ')';
+        ctx.fillRect(b.x, b.y, core, core);
+      }
+      ctx.globalAlpha = alpha;
+      if (prog < 0.97) {
+        ctx.fillStyle = 'rgba(240,249,33,0.10)';
+        ctx.fillRect(frontX, padT, bs * 5, ROWS * ch);
+        ctx.fillStyle = 'rgba(240,249,33,0.22)';
+        ctx.fillRect(frontX, padT, Math.max(2, bs * 0.8), ROWS * ch);
+      }
+      ctx.restore();
+    }
 
     function drawGrid() {
       ctx.fillStyle = '#0d1017';
@@ -257,7 +330,7 @@
     }
 
     /* mode: 'data' up to col; nameProg 0..1 writes UniVis cells hot */
-    function drawUpTo(col, nameProg) {
+    function drawUpTo(col, nameProg, nameAlpha) {
       drawGrid();
       for (var s = 0; s < Math.min(col, COLS); s++) {
         for (var l = 0; l < ROWS; l++) {
@@ -270,25 +343,8 @@
         ctx.fillStyle = 'rgba(240,249,33,0.16)';
         ctx.fillRect(padL + (col - 1) * cw, padT, cw * 2.2, ROWS * ch);
       }
-      /* UniVis write-in: letters emerge as hot cells over the quiet region */
-      if (nameProg > 0) {
-        var upto = Math.floor(nameProg * nameCols.length);
-        for (var i = 0; i < upto; i++) {
-          var nc = nameCols[i];
-          nameCellsByCol[nc].forEach(function (rw) {
-            var r = cellRect(nc, rw);
-            var t = 0.72 + 0.28 * ((nc % 7) / 7);
-            ctx.fillStyle = plasma(t);
-            ctx.fillRect(r[0], r[1], r[2], r[3]);
-          });
-        }
-        /* leading glow edge */
-        if (upto > 0 && upto < nameCols.length) {
-          var ec = nameCols[upto - 1];
-          ctx.fillStyle = 'rgba(240,249,33,0.25)';
-          ctx.fillRect(padL + ec * cw, padT, cw * 2.5, ROWS * ch);
-        }
-      }
+      /* heat-signature write-in */
+      drawName(nameProg, nameAlpha);
       var lbl = document.getElementById('roToken');
       var st = document.getElementById('roState');
       if (lbl) {
@@ -301,27 +357,33 @@
 
     var reducedHero = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reducedHero) {
-      drawUpTo(COLS, 1);
+      drawUpTo(COLS, 1, 1);
       var st0 = document.getElementById('roState');
       if (st0) st0.textContent = 'static render';
     } else {
-      var col = 0, nameProg = 0, holdUntil = 0, phase = 'data'; /* data -> name -> hold */
+      var col = 0, nameProg = 0, fadeA = 1, holdUntil = 0, phase = 'data'; /* data -> name -> hold -> fade */
       var lastPointer = 0, paused = false;
 
       function frame(ts) {
         if (!paused && ts > holdUntil) {
           if (phase === 'data') {
             var speed = Math.max(1, Math.round(COLS / 900));
-            drawUpTo(col, 0);
+            drawUpTo(col, 0, 0);
             col += speed;
             if (col > COLS + 30) { phase = 'name'; col = COLS; }
           } else if (phase === 'name') {
-            nameProg = Math.min(1, nameProg + 0.02);
-            drawUpTo(COLS, nameProg);
-            if (nameProg >= 1) { phase = 'hold'; holdUntil = ts + 3200; }
+            nameProg = Math.min(1, nameProg + 0.016);
+            drawUpTo(COLS, nameProg, 1);
+            if (nameProg >= 1) { phase = 'hold'; holdUntil = ts + 3800; }
+          } else if (phase === 'hold') {
+            drawUpTo(COLS, 1, 1);
+            if (ts > holdUntil) { phase = 'fade'; fadeA = 1; }
+          } else if (phase === 'fade') {
+            fadeA = Math.max(0, fadeA - 0.05);
+            drawUpTo(COLS, 1, fadeA);
+            if (fadeA <= 0) { phase = 'reset'; holdUntil = ts + 400; }
           } else {
-            drawUpTo(COLS, 1);
-            holdUntil = ts + 500;
+            drawUpTo(col, 0, 0);
             phase = 'data'; col = 0; nameProg = 0;
           }
         }
@@ -336,7 +398,7 @@
         var x = (e.clientX - rect.left) / rect.width * W;
         var c = Math.round((x - padL) / cw);
         phase = 'data'; nameProg = 0;
-        drawUpTo(Math.max(0, Math.min(c, COLS)), 0);
+        drawUpTo(Math.max(0, Math.min(c, COLS)), 0, 0);
         var st = document.getElementById('roState');
         if (st) st.textContent = 'scrub — pointer';
       }
@@ -344,7 +406,7 @@
       canvas.addEventListener('pointerdown', scrub);
       /* self-resume: 2.5s after the last pointer interaction */
       setInterval(function () {
-        if (paused && Date.now() - lastPointer > 2500) {
+        if (paused && Date.now() - lastPointer > 4500) {
           paused = false;
           phase = 'data';
           var st = document.getElementById('roState');
