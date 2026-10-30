@@ -1,0 +1,67 @@
+Fri Oct 30 06:53:04 UTC 2026
+mx-smi  version: 2.2.9
+
+=================== MetaX System Management Interface Log ===================
+Timestamp                                         : Fri Oct 30 06:53:04 2026
+
+Attached GPUs                                     : 1
++---------------------------------------------------------------------------------+
+| MX-SMI 2.2.9                       Kernel Mode Driver Version: 3.8.30           |
+| MACA Version: 3.3.0.15             BIOS Version: 1.33.5.0                       |
+|------------------+-----------------+---------------------+----------------------|
+| Board       Name | GPU   Persist-M | Bus-id              | GPU-Util      sGPU-M |
+| Pwr:Usage/Cap    | Temp       Perf | Memory-Usage        | GPU-State            |
+|==================+=================+=====================+======================|
+| 0     MetaX C500 | 0           Off | 0000:37:00.0        | 0%           Enabled |
+| 69W / 350W       | 37C          P9 | 926/65536 MiB       | Available            |
++------------------+-----------------+---------------------+----------------------+
+
++---------------------------------------------------------------------------------+
+| Sliced GPU                                                                      |
+|------------------------------------+---------------------+----------------------|
+| Minor    GPU    sGPU-Id    Compute | Vram Quota          | sGPU-Util            |
+|====================================+=====================+======================|
+| 012      0      2          25%     | 0/16000 MiB         | 0%                   |
++------------------------------------+---------------------+----------------------+
+
++---------------------------------------------------------------------------------+
+| Process:                                                                        |
+|  GPU                    PID         Process Name                 GPU Memory     |
+|                                                                  Usage(MiB)     |
+|=================================================================================|
+|  no process found                                                               |
++---------------------------------------------------------------------------------+
+
+End of Log
+torch 2.8.0+metax3.3.0.2
+transformers 4.57.3
+device MetaX C500
+allow_tf32 True
+MACA_CLANG_PATH=/opt/maca/mxgpu_llvm/bin
+MACA_PATH=/opt/maca
+LD_LIBRARY_PATH=/opt/maca/lib:/opt/maca/ompi/lib:/opt/maca/ucx/lib:/opt/mxdriver/lib:/opt/maca/lib:/opt/maca/ompi/lib:/opt/maca/ucx/lib:/opt/mxdriver/lib:/opt/maca/lib:/opt/maca/ompi/lib:/opt/maca/ucx/lib:/opt/mxdriver/lib:
+PATH=/opt/conda/bin:/opt/conda/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/maca/mxgpu_llvm/bin:/opt/maca/ompi/bin:/opt/maca/ucx/bin:/opt/mxdriver/bin:/opt/conda/bin:/opt/conda/condabin:/opt/conda/bin:/opt/conda/condabin:/opt/maca/bin:/opt/maca/mxgpu_llvm/bin:/opt/maca/ompi/bin:/opt/maca/ucx/bin:/opt/mxdriver/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1
+apex                           0.1+metax3.3.0.2
+causal_conv1d                  1.5.0.post8+metax3.3.0.2torch2.8
+dropout_layer_norm             0.1+metax3.3.0.2torch2.8
+flash_attn                     2.6.3+metax3.3.0.2torch2.8
+flash-linear-attention         0.1+metax3.3.0.2torch2.8
+flash_mla                      1.0.1+metax3.3.0.2torch2.8
+flashinfer                     0.2.6+metax3.3.0.2torch2.8
+fused_dense_lib                2.6.3+metax3.3.0.2torch2.8
+mamba_ssm                      2.2.4+metax3.3.0.2torch2.8
+mctlassEx                      0.1.1+metax3.3.0.2torch2.8
+numpy                          1.26.4
+rotary_emb                     0.1+metax3.3.0.2torch2.8
+sageattention                  2.0.1+metax3.3.0.2torch2.8
+spconv                         2.1.0+metax3.3.0.2torch2.8
+torch                          2.8.0+metax3.3.0.2
+torchaudio                     2.4.1+metax3.3.0.2
+torchcodec                     0.6.0+metax3.3.0.2
+torchvision                    0.15.1+metax3.3.0.2
+transformers                   4.57.3
+triton                         3.0.0+metax3.3.0.2
+xentropy_cuda_lib              0.1+metax3.3.0.2torch2.8
+xformers                       0.0.22+metax3.3.0.2torch2.8
+univis 0.7.1

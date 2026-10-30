@@ -118,7 +118,23 @@ flowchart LR
 
 复现：`univis diff demo`，或 [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py)。错误是人为注入的，只能说明机制成立；在真实适配问题上的检出能力，要靠 C500 实测来证明（见下方路线图阶段 C）。
 
-### 2. 沐曦曦云 C500 与 NVIDIA L20 的层级一致性
+### 2. 沐曦曦云 C500 真机：逐层对照（初步）
+
+<div align="center">
+<img src="https://cookiesheep.github.io/univis/assets/img/c500-layer-error.png" alt="C500 per-layer error" width="92%">
+</div>
+
+Qwen2.5-0.5B-Instruct，参考为 x86 CPU fp32（NVIDIA 基线待补录，所以是初步结论）：
+
+| 待检端 | 末层相对误差 | top-1 一致率 | 判定 |
+|---|---|---|---|
+| C500 bf16 | 2.73e-2 | 97.2% | **PASS**：每层误差为正常 bf16（x86 CPU）的 1.00–1.04 倍 |
+| C500 fp32，TF32 关闭 | 5.73e-6 | 100% | 与 CPU fp32 几乎逐位一致 |
+| C500 fp32，镜像默认（TF32 开启） | 1.66e-3 | 99.3% | 约为关闭时的 290 倍 |
+
+一个对沐曦用户有用的发现：**官方镜像默认把 fp32 矩阵乘法按 TF32 执行**（`TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1`）。需要严格 fp32 时设为 `0`，并关掉 `torch.backends.cuda.matmul.allow_tf32`。详情、环境指纹与录制脚本见 [docs/mxmaca/stage-c/](docs/mxmaca/stage-c/README.md)，交互报告可[在线打开](https://cookiesheep.github.io/univis/assets/reports/c500_diff_0.5B.html)。
+
+### 3. 沐曦曦云 C500 与 NVIDIA L20 的层级一致性
 
 同一模型、同一提示词、同一解码协议（greedy / bf16），在 MetaX 曦云 C500（16GB sGPU 切分）与 NVIDIA L20 上分别采集逐层统计量，比较两侧的层级画像：
 
@@ -156,7 +172,7 @@ flowchart LR
 |---|---|---|
 | A | C500 指标采集通路验证（含环境指纹） | ✅ 2026-08-19 |
 | B | C500 与 NVIDIA 跨规模层级一致性 | ✅ 2026-08-19 |
-| C | C500 上的 `univis diff`：为 Qwen2.5 0.5B / 3B / 7B 发布 NVIDIA 参考指纹，持有 C500 的人单卡即可比对 | 计划中 |
+| C | C500 上的 `univis diff`：C500 指纹已录（0.5B / 3B / 7B）；0.5B 以 x86 CPU 为基线 PASS；补录 NVIDIA 参考指纹后，持有 C500 的人单卡即可比对 | 🔄 进行中（2026-10-30） |
 | C+ | 逐层耗时对照：找出在 C500 上偏慢的层 → 换上 FlagGems / mcTriton 算子 → 用 diff 验证精度不变 | 计划中 |
 
 ## 精确支持契约与范围声明
@@ -208,6 +224,7 @@ report_path = tracker.finish()                       # 自包含 HTML 报告
 - 两种 GPU 真机实测：沐曦曦云 C500（MXMACA）与 NVIDIA L20。Qwen2.5 0.5B / 3B / 7B 和 TinyLlama-1.1B 做了两侧对照，Qwen3.6-27B 为 L20 单侧。
 - [在线画廊](https://cookiesheep.github.io/univis/)里有 7 份真机报告（C500 4 份、L20 3 份）和 1 份 CPU diff 报告，浏览器直接打开，不需要 GPU。
 - C500 环境指纹（MXMACA 版本、mx-smi 输出）、原始 JSONL 和复现脚本全部入库：[docs/mxmaca/](docs/mxmaca/phase-a/README.md)。
+- C500 阶段 C 的环境指纹、逐层结果与录制脚本：[docs/mxmaca/stage-c/](docs/mxmaca/stage-c/README.md)。
 - 两例负结果完整公开（见上一节）。
 - 94 项单元测试，GitHub Actions 在 Python 3.10 / 3.12 上全量运行。
 

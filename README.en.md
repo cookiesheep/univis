@@ -118,7 +118,23 @@ flowchart LR
 
 Reproduce with `univis diff demo` or [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py). The fault is injected, so this shows the mechanism works; detection on real porting issues has to be shown on C500 (stage C below).
 
-### 2. Layer-level agreement between MetaX C500 and NVIDIA L20
+### 2. MetaX C500, layer by layer (preliminary)
+
+<div align="center">
+<img src="https://cookiesheep.github.io/univis/assets/img/c500-layer-error.png" alt="C500 per-layer error" width="92%">
+</div>
+
+Qwen2.5-0.5B-Instruct against an x86 CPU fp32 reference (preliminary until the NVIDIA baseline is recorded):
+
+| Candidate | Last-layer relative error | Top-1 agreement | Verdict |
+|---|---|---|---|
+| C500 bf16 | 2.73e-2 | 97.2% | **PASS**: every layer at 1.00–1.04× the error of a correct bf16 stack (x86 CPU) |
+| C500 fp32, TF32 off | 5.73e-6 | 100% | Practically bit-level agreement with CPU fp32 |
+| C500 fp32, image default (TF32 on) | 1.66e-3 | 99.3% | About 290× the TF32-off error |
+
+A finding useful to MetaX users: **the official image runs fp32 matmuls as TF32 by default** (`TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1`). For strict fp32, set it to `0` and turn off `torch.backends.cuda.matmul.allow_tf32`. Details, environment fingerprint, and the recording script: [docs/mxmaca/stage-c/](docs/mxmaca/stage-c/README.md); interactive report [online](https://cookiesheep.github.io/univis/assets/reports/c500_diff_0.5B.html).
+
+### 3. Layer-level agreement between MetaX C500 and NVIDIA L20
 
 Same model, prompts, and decoding protocol (greedy / bf16) on a MetaX C500 (16GB sGPU slice) and an NVIDIA L20; per-layer statistics collected on both sides and compared as profiles:
 
@@ -156,7 +172,7 @@ The same C500 session also drove a fix in UniVis itself: hook overhead fell from
 |---|---|---|
 | A | C500 collection path, with environment fingerprint | ✅ 2026-08-19 |
 | B | Cross-scale layer agreement, C500 vs NVIDIA | ✅ 2026-08-19 |
-| C | `univis diff` on C500: publish NVIDIA reference fingerprints for Qwen2.5 0.5B / 3B / 7B so a single C500 is enough to check | planned |
+| C | `univis diff` on C500: C500 fingerprints recorded (0.5B / 3B / 7B); 0.5B PASS against an x86 CPU baseline; once NVIDIA reference fingerprints are published, a single C500 is enough to check | 🔄 in progress (2026-10-30) |
 | C+ | Per-layer latency: find layers that are slow on C500 → swap in FlagGems / mcTriton kernels → verify accuracy with diff | planned |
 
 ## Support contract and scope
@@ -208,6 +224,7 @@ CLI: `univis report` (JSONL → HTML), `univis compare` (multi-model), `univis s
 - Measured on two GPUs: MetaX C500 (MXMACA) and NVIDIA L20. Qwen2.5 0.5B / 3B / 7B and TinyLlama-1.1B were compared on both; Qwen3.6-27B on L20 only.
 - The [gallery](https://cookiesheep.github.io/univis/) has 7 real-hardware reports (4 on C500, 3 on L20) and 1 CPU diff report, viewable in a browser without a GPU.
 - C500 environment fingerprints (MXMACA versions, mx-smi output), raw JSONL, and reproduction scripts are in the repo: [docs/mxmaca/](docs/mxmaca/phase-a/README.md).
+- Stage C environment fingerprint, per-layer results, and recording script: [docs/mxmaca/stage-c/](docs/mxmaca/stage-c/README.md).
 - Both negative results are published in full (previous section).
 - 94 unit tests run on GitHub Actions with Python 3.10 / 3.12.
 
