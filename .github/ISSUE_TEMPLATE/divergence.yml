@@ -1,0 +1,50 @@
+name: 国产 GPU 输出不一致 / Output differs on another GPU
+description: 模型在曦云 C500 等硬件上的输出和 NVIDIA 不一样，想定位原因
+title: "[divergence] <模型> on <硬件>"
+labels: ["divergence"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！先用 `univis diff` 录一下两边的指纹，通常就能看出是正常精度误差，还是从某一层开始的问题。
+        Thanks! Recording fingerprints with `univis diff` usually tells precision noise apart from a real divergence.
+        ```bash
+        pip install "univis[hf]"
+        univis diff record <model> --dtype fp32 --device cpu -o ref.json
+        univis diff record <model> --dtype bf16 --tokens-from ref.json -o nvidia.json --label "NVIDIA"
+        univis diff record <model> --dtype bf16 --tokens-from ref.json -o target.json --label "<your GPU>"
+        univis diff compare ref.json target.json --baseline nvidia.json -o report.html
+        ```
+  - type: input
+    id: model
+    attributes:
+      label: 模型 / Model
+      placeholder: Qwen/Qwen2.5-7B-Instruct
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 硬件与软件栈 / Hardware and stack
+      description: 例如 MetaX C500 · MXMACA 3.x · torch 2.8.0+metax · transformers 4.57；对照端（NVIDIA 型号、CUDA、torch 版本）也请写上
+    validations:
+      required: true
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 现象 / What differs
+      description: 输出哪里不一样？贪心解码的回答不同、分数掉了，还是报错？
+    validations:
+      required: true
+  - type: textarea
+    id: diff
+    attributes:
+      label: univis diff 输出 / univis diff output
+      description: 粘贴 `univis diff compare` 的终端输出；方便的话附上 report.html 或指纹 JSON
+      render: text
+  - type: checkboxes
+    id: share
+    attributes:
+      label: 公开 / Sharing
+      options:
+        - label: 同意把这个案例（脱敏后）写进 UniVis 的案例文档 / OK to feature this case (anonymized) in UniVis docs
