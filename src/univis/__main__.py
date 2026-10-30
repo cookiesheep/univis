@@ -1,4 +1,4 @@
-"""CLI entry point: python -m univis serve / python -m univis report <jsonl_path>."""
+"""CLI entry point: univis serve / report / compare / pilot / diff."""
 
 from __future__ import annotations
 
@@ -35,6 +35,9 @@ def main() -> None:
     pilot_p.add_argument('--max-tokens', type=int, default=50, help='Tokens to generate (default: 50)')
     pilot_p.add_argument('--prompt', default='The meaning of life is', help='Prompt text')
     pilot_p.add_argument('--output-dir', default='.', help='Dir for monitor JSONL/report')
+
+    from .diff_cli import add_parser as add_diff_parser
+    add_diff_parser(sub)
 
     args = parser.parse_args()
 
@@ -157,6 +160,10 @@ def main() -> None:
         print(f'baseline: {t_base:.3f}s   skip: {t_skip:.3f}s   speedup: {speedup:.2f}x')
         print(f'baseline gen: {tok.decode(out_base[0][inp2.shape[1]:], skip_special_tokens=True)[:100]}')
         print(f'skip gen:     {tok.decode(out_skip[0][inp2.shape[1]:], skip_special_tokens=True)[:100]}')
+
+    elif args.command == 'diff':
+        from .diff_cli import run as run_diff
+        run_diff(args)
 
     else:
         parser.print_help()
