@@ -427,7 +427,9 @@
     { f: 'l20_3B', hw: 'l20', m: 'Qwen2.5-3B', note: '36 层 · r = 1.0000 · MAE 0.0007', chart: '预测熵轨迹' },
     { f: 'c500_7B', hw: 'c500', m: 'Qwen2.5-7B', note: '15.3GB bf16 跑通 16GB 切分实例 · 28 层', chart: '冗余排名 treemap' },
     { f: 'l20_7B', hw: 'l20', m: 'Qwen2.5-7B', note: 'r = 1.0000 · MAE 0.0005（三规模最紧）', chart: '层级画像条带' },
+    { f: 'diff_cpu_demo', hw: 'cpu', m: 'SmolLM2-135M · univis diff', note: '单个错误算子 vs bf16 精度误差 · 定位到 block 17 · CPU 可复现', chart: '逐层误差与分叉起点', thumb: 'assets/img/diff-report.png' },
   ];
+  var HW = { c500: ['MetaX C500', 'MetaX C500 · MXMACA'], l20: ['NVIDIA L20', 'NVIDIA L20'], cpu: ['CPU', 'CPU · diff'] };
   var grid = document.getElementById('reportGrid');
   var preview = document.getElementById('thumbPreview');
   if (grid) {
@@ -437,10 +439,10 @@
       a.href = 'assets/reports/' + r.f + '.html';
       a.target = '_blank';
       a.rel = 'noopener';
-      a.dataset.thumb = 'assets/thumbs/' + r.f + '.png';
-      a.dataset.model = r.m + ' · ' + (r.hw === 'c500' ? 'MetaX C500' : 'NVIDIA L20');
+      a.dataset.thumb = r.thumb || ('assets/thumbs/' + r.f + '.png');
+      a.dataset.model = r.m + ' · ' + HW[r.hw][0];
       a.innerHTML =
-        '<span class="tag ' + r.hw + '">' + (r.hw === 'c500' ? 'MetaX C500 · MXMACA' : 'NVIDIA L20') + '</span>' +
+        '<span class="tag ' + r.hw + '">' + HW[r.hw][1] + '</span>' +
         '<h3>' + r.m + '</h3>' +
         '<p>' + r.note + '</p>' +
         '<span class="spark" aria-hidden="true"><i style="width:' +

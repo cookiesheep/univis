@@ -27,12 +27,13 @@
 <canvas id="bgCanvas" aria-hidden="true"></canvas>
 
 <nav class="nav" aria-label="主导航">
-  <a class="brand" href="#top"><span class="brand-dot" aria-hidden="true"></span>UniVis<span class="brand-sub">/ 推理冗余诊断</span></a>
+  <a class="brand" href="#top"><span class="brand-dot" aria-hidden="true"></span>UniVis<span class="brand-sub">/ 国产 GPU 逐层对照</span></a>
   <div class="nav-links">
+    <a href="#diff">逐层对照</a>
     <a href="#gallery">报告画廊</a>
     <a href="#crosshw">跨硬件一致</a>
     <a href="#timeline">C500 实录</a>
-    <a href="#earlyexit">early-exit</a>
+    <a href="#earlyexit">实验记录</a>
     <a href="#honest">负结果</a>
     <a href="#contract">契约</a>
     <a href="#ack">真机硬件</a>
@@ -46,10 +47,11 @@
 <!-- ============ HERO ============ -->
 <header id="top" class="hero">
   <div class="hero-inner">
-    <p class="kicker reveal">AI Infra · 大模型推理优化与部署 · MIT 开源</p>
-    <h1 class="reveal">看见大模型推理时<br><em>哪些层在真正计算</em>，<span class="dim">哪些在冗余。</span></h1>
-    <p class="lede reveal">UniVis 用零侵入 forward hook 在端侧把每层激活压缩为 5 项标量指标（单步 1–2 KB），
-    产出实时热力图与自包含报告。下面的热力图不是动画素材——是 <b>Qwen2.5-7B 在沐曦曦云 C500 上真实生成的 478 个 token × 28 层遥测回放</b>。</p>
+    <p class="kicker reveal">AI Infra · 国产算力适配 · MetaX C500 · MIT 开源</p>
+    <h1 class="reveal">国产 GPU 上的大模型，<em>逐层对照</em>：<br><span class="dim">算得对不对，从哪一层开始不对。</span></h1>
+    <p class="lede reveal">同一个模型换了卡、换了软件栈或算子库，输出总会有点不同。UniVis 用 forward hook 在每一层出口记下几 MB 的数值指纹，
+    逐层对照，判断这点不同是正常精度误差，还是<b>从某一层开始的算子问题</b>（<a href="#diff">看实测</a>）。
+    下面的热力图不是动画素材——是 <b>Qwen2.5-7B 在沐曦曦云 C500 上真实生成的 478 个 token × 28 层遥测回放</b>。</p>
     <div class="hero-canvas-wrap reveal">
       <canvas id="heroCanvas" width="1200" height="420" role="img"
         aria-label="Qwen2.5-7B 在 MetaX C500 上的逐层活跃度热力图，颜色由暗到亮表示该层对该 token 的改变幅度"></canvas>
@@ -62,18 +64,42 @@
     <div class="cta reveal">
       <a class="btn primary" href="https://github.com/cookiesheep/univis" rel="noopener">GitHub 仓库</a>
       <a class="btn" href="#gallery">查看真机报告（无卡可审计）</a>
-      <button class="btn ghost mono" id="pipBtn" title="点击复制">pip install univis</button>
+      <button class="btn ghost mono" id="pipBtn" title="点击复制">pip install "univis[hf]"</button>
     </div>
     <dl class="hero-stats reveal">
+      <div><dt>单个错误算子</dt><dd>定位到 block 17 <span class="dim">(输出一致率不变)</span></dd></div>
       <div><dt>跨硬件画像一致性</dt><dd>r = 1.0000</dd></div>
       <div><dt>验证规模</dt><dd>0.5B → 27B <span class="dim">(54×)</span></dd></div>
-      <div><dt>单元测试</dt><dd>83 · CI 全绿</dd></div>
-      <div><dt>PyPI</dt><dd>pip install univis</dd></div>
+      <div><dt>单元测试</dt><dd>91 · CI 全绿</dd></div>
+      
     </dl>
   </div>
 </header>
 
 <main>
+<!-- ============ DIFF ============ -->
+<section id="diff" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">00 · univis diff · 逐层对照</p>
+    <h2>只看输出分不出来，逐层对照一眼定位</h2>
+    <p class="lede">在 SmolLM2-135M 的第 17 层故意换错一个激活函数，模拟一个写错的算子。和 fp32 参考答案比，它的 top-1 一致率与数值栈完全正确的 bf16 <b>一样都是 96.2%</b>；
+    逐层对照则指出误差从 <b>block 17</b> 开始超出正常 bf16 误差的 3 倍。一行命令、CPU 上约 40 秒即可复现：<span class="mono">univis diff demo</span>。</p>
+  </div>
+  <div class="rtable reveal">
+    <table>
+      <thead><tr><th>待检端</th><th>top-1 一致率</th><th>UniVis 逐层判定</th></tr></thead>
+      <tbody>
+        <tr><td>bf16，数值栈正确</td><td>96.2%</td><td>—（作为容差基线）</td></tr>
+        <tr class="bad"><td>bf16，第 17 层算子错误（SiLU → tanh-GELU）</td><td>96.2%</td><td>DIVERGE @ block 17（基线误差的 3.3 倍）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <a class="bigfig reveal" href="assets/reports/diff_cpu_demo.html" target="_blank" rel="noopener" style="display:block;max-height:640px;overflow:hidden">
+    <img src="assets/img/diff-report.png" alt="univis diff 报告：误差从 block 17 开始超出基线" loading="lazy">
+  </a>
+  <p class="footnote reveal">错误为人为注入，只说明机制成立；在真实适配问题上的检出能力，将在 C500 上用 NVIDIA 参考指纹实测（路线图阶段 C）。点击图片打开完整的交互报告。</p>
+</section>
+
 <!-- ============ GALLERY ============ -->
 <section id="gallery" class="section">
   <div class="section-head reveal">
@@ -154,10 +180,10 @@
 <!-- ============ EARLY-EXIT ============ -->
 <section id="earlyexit" class="section">
   <div class="section-head reveal">
-    <p class="kicker">05 · Pilot early-exit</p>
-    <h2>把度量变成行动：质量与算力的可调权衡</h2>
-    <p class="lede">当模型连续多步足够自信时提前结束生成。横轴为熵阈值（log 刻度），纵轴为生成的 token 数（% 相对基线）——
-    曲线上的每一点都是 C500 上的真实测量（24 条多样化提示词，窗口 = 5）。</p>
+    <p class="kicker">05 · 实验记录：按熵提前结束</p>
+    <h2>按熵提前结束生成，本质是截短回答</h2>
+    <p class="lede">当模型连续多步足够自信时强制结束生成。省下的 token 来自截断，不是算得更快，所以我们不把它当作推理加速手段推荐。
+    横轴为熵阈值（log 刻度），纵轴为生成的 token 数（% 相对基线）——曲线上的每一点都是 C500 上的真实测量（24 条多样化提示词，窗口 = 5）。</p>
   </div>
   <div class="ee-wrap reveal">
     <div class="ee-controls" role="tablist" aria-label="选择模型">
@@ -186,7 +212,7 @@
     </table>
   </div>
   <p class="lede reveal">结论：残差架构里余弦相似度饱和 ≠ 这层没用，「看似冗余」的层仍承担必要的细化计算。
-  完整记录随 commit <span class="mono">1938d60</span> 公开，Pilot 转向基于置信度的 early-exit。
+  完整记录随 commit <span class="mono">1938d60</span> 公开。
   <b>公开纠错是我们可信度的一部分。</b></p>
 </section>
 
@@ -204,7 +230,7 @@
         <li>TinyLlama-1.1B（Llama 架构）· 双侧</li>
         <li>Qwen3.6-27B（hybrid）· L20 单侧</li>
         <li>torch 2.8.0+metax3.3.0.2 / MACA 3.3.0.15 / transformers 4.57.x</li>
-        <li>83 项单元测试 · CPU 环境全量运行</li>
+        <li>91 项单元测试 · CPU 环境全量运行</li>
       </ul>
     </div>
     <div class="reveal">
@@ -213,7 +239,7 @@
         <li>冗余结论不外推到未测模型</li>
         <li>27B 级 C500 整机对照：计划 2026-10</li>
         <li>Attention / FFN 子层粒度：路线图中期</li>
-        <li>early-exit 质量度量当前为 token 级保留率，任务级正确性评估进行中</li>
+        <li>早停实验的「保留率」是截断后前缀与原回答一致的比例，不是质量分</li>
       </ul>
     </div>
     <div class="reveal faq">
