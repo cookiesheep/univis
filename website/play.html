@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UniVis 在线体验 · 逐层对照，不用 GPU</title>
+<meta name="description" content="亲手弄坏模型的一层，看 UniVis 能不能找出来；查看沐曦曦云 C500 对 NVIDIA RTX 5090 的逐层对照真机数据。">
+<script src="assets/echarts.min.js"></script>
+<style>
+:root{--bg:#faf9f9;--card:#fff;--txt:#1f2328;--dim:#6b7280;--line:#e3e5e8;--green:#3b915d;--orange:#c2410c;--soft:#f3f4f6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.65 "PingFang SC","Microsoft YaHei","Noto Sans CJK SC",-apple-system,sans-serif}
+a{color:var(--green)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{font-weight:800;font-size:20px;letter-spacing:-.01em}.brand span{color:var(--dim);font-weight:500;font-size:14px;margin-left:8px}
+.links a{margin-left:16px;font-size:14px;color:var(--dim);text-decoration:none}.links a:hover{color:var(--green)}
+h1{font-size:clamp(24px,3.4vw,34px);margin:22px 0 6px;letter-spacing:-.01em}
+.lede{color:#374151;max-width:820px;margin:0 0 22px}
+.grid{display:grid;grid-template-columns:320px 1fr;gap:18px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.side h3{font-size:13px;letter-spacing:.08em;color:var(--dim);margin:14px 0 8px;font-weight:600}
+.side h3:first-child{margin-top:0}
+.cases{display:flex;flex-direction:column;gap:6px}
+.case{text-align:left;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit;font-size:13.5px;color:var(--txt);transition:.15s}
+.case:hover{border-color:#b7c9bd;background:#f7faf8}
+.case.on{border-color:var(--green);background:#eef6f1;box-shadow:inset 3px 0 0 var(--green)}
+.slider{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.slider label{font-size:13px;color:var(--dim)}.slider b{color:var(--txt)}
+input[type=range]{width:100%;accent-color:var(--green)}
+.verdict{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.pill{display:inline-block;padding:4px 14px;border-radius:999px;font-weight:700;font-size:14px;color:#fff}
+.pass{background:var(--green)}.div{background:var(--orange)}
+.vt{flex:1;min-width:260px}.vt .t{font-size:18px;font-weight:650;margin:2px 0 4px}.vt .d{color:var(--dim);font-size:13.5px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+@media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--soft);border-radius:10px;padding:10px 12px}.kpi span{display:block;font-size:12px;color:var(--dim)}.kpi b{font-size:20px}
+.strip{display:flex;gap:2px;margin:16px 0 4px;height:34px}
+.cell{flex:1;border-radius:3px;background:#e5e7eb;transition:background .12s}
+.cell.ok{background:#9fd0b1}.cell.bad{background:var(--orange)}.cell.after{background:#f0b590}
+.strip-cap{display:flex;justify-content:space-between;font-size:11.5px;color:var(--dim)}
+.chart{height:300px;margin-top:6px}.chart.small{height:220px}
+.ctitle{font-size:13px;color:var(--dim);margin-top:14px}
+.note{font-size:12.5px;color:var(--dim);margin-top:12px}
+.contrast{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.contrast div{border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:13.5px}
+.contrast b{display:block;font-size:12px;color:var(--dim);font-weight:600;margin-bottom:2px}
+footer{margin-top:26px;font-size:12.5px;color:var(--dim)}
+code{background:var(--soft);padding:1px 6px;border-radius:5px;font-size:12.5px}
+</style>
+</head>
+<body><div class="wrap">
+<div class="top"><div class="brand">UniVis<span>在线体验 · 逐层对照</span></div>
+<div class="links"><a href="./">证据画廊</a><a href="https://github.com/cookiesheep/univis">GitHub</a><a href="https://pypi.org/project/univis/">PyPI</a></div></div>
+<h1>亲手弄坏一层，看 UniVis 能不能找出来</h1>
+<p class="lede">左边选一个案例，UniVis 会逐层比对待检端和参考端，判断误差是在「正常精度范围」内，还是从某一层开始超出。所有数据都来自真实运行：故障注入在 CPU 上完成，C500 对照来自沐曦曦云 C500 与 NVIDIA RTX 5090 真机。拖动阈值滑块可以看判定如何随之变化。</p>
+<div class="grid">
+<div class="card side">
+<h3>① 亲手弄坏一层（SmolLM2-135M）</h3><div class="cases" id="g-fault"></div>
+<h3>② 沐曦曦云 C500 真机</h3><div class="cases" id="g-c500"></div>
+<h3>③ 方法与边界</h3><div class="cases" id="g-lesson"></div>
+<div class="slider"><label>判定阈值：误差超过容差的 <b id="thv">3.0</b> 倍即判为分叉</label>
+<input type="range" id="th" min="1.5" max="6" step="0.1" value="3"></div>
+</div>
+<div class="card">
+<div class="verdict"><span class="pill" id="pill">PASS</span><div class="vt"><div class="t" id="vt"></div><div class="d" id="vd"></div></div></div>
+<div class="kpis">
+<div class="kpi"><span>分叉起点</span><b id="k-on">—</b></div>
+<div class="kpi"><span>子层</span><b id="k-sub">—</b></div>
+<div class="kpi"><span>最大误差倍数</span><b id="k-max">—</b></div>
+<div class="kpi"><span>比对位置数</span><b id="k-pos">—</b></div>
+</div>
+<div class="contrast"><div><b>只看最终输出（top-1 一致率）</b><span id="c-out"></span></div><div><b>逐层对照（UniVis）</b><span id="c-layer"></span></div></div>
+<div class="strip" id="strip"></div><div class="strip-cap"><span>embedding</span><span>逐层扫描：绿 = 在容差内，橙 = 超出</span><span id="lastb">block</span></div>
+<div class="ctitle">逐层相对误差（对数轴）：待检端 vs 容差基线</div><div id="c1" class="chart"></div>
+<div class="ctitle">每层误差倍数（待检端 ÷ 容差基线），虚线为阈值</div><div id="c2" class="chart small"></div>
+<div class="note" id="note"></div>
+</div></div>
+<footer>本地复现：<code>pip install "univis[hf]"</code> → <code>univis diff demo</code>。方法、真机环境指纹与全部原始结果见 <a href="https://github.com/cookiesheep/univis/tree/main/docs/mxmaca/stage-c">docs/mxmaca/stage-c</a>。判定只覆盖所测模型、输入与软件栈，不外推。</footer>
+</div>
+<script>
+var D, cur, timer, th = 3.0, MIN = 1e-3;
+var c1 = echarts.init(document.getElementById('c1')), c2 = echarts.init(document.getElementById('c2'));
+addEventListener('resize', function () { c1.resize(); c2.resize(); });
+function fmt(v) { return v == null ? '—' : v.toExponential(2); }
+function pct(v) { return (v * 100).toFixed(1) + '%'; }
+function ratios(c) {
+  return c.cand.block.map(function (x, i) { var y = c.base.block[i]; return x > MIN ? x / Math.max(y, 1e-12) : 1; });
+}
+function judge(c) {
+  var r = ratios(c), on = r.findIndex(function (v) { return v > th; }), sub = null;
+  if (on >= 1 && c.cand.attn) {
+    var b = on - 1, sr = function (k) { var x = c.cand[k][b]; return x > MIN ? x / Math.max(c.base[k][b], 1e-12) : 1; };
+    sub = sr('attn') > th ? 'attention' : (sr('mlp') > th ? 'MLP' : null);
+  }
+  return { r: r, on: on < 0 ? null : on, sub: sub, max: Math.max.apply(null, r.slice(1)) };
+}
+function lname(i) { return i === 0 ? 'embedding' : 'block ' + (i - 1); }
+function render(animate) {
+  var c = cur, j = judge(c), n = c.cand.block.length, div = j.on !== null;
+  var pill = document.getElementById('pill');
+  pill.textContent = div ? 'DIVERGE' : 'PASS'; pill.className = 'pill ' + (div ? 'div' : 'pass');
+  document.getElementById('vt').textContent = c.title;
+  document.getElementById('vd').textContent = c.desc + '。参考：' + c.labels[0] + '；待检：' + c.labels[1] + '；容差：' + c.labels[2] + '。';
+  document.getElementById('k-on').textContent = div ? lname(j.on) : '—';
+  document.getElementById('k-sub').textContent = j.sub || '—';
+  document.getElementById('k-max').textContent = j.max.toFixed(2) + '×';
+  document.getElementById('k-pos').textContent = c.positions;
+  document.getElementById('c-out').textContent = '待检 ' + pct(c.cand_top1) + ' / 容差 ' + pct(c.base_top1) +
+    (Math.abs(c.cand_top1 - c.base_top1) < 0.005 ? '：几乎一样，看不出问题' : '');
+  document.getElementById('c-layer').textContent = div ? '从 ' + lname(j.on) + (j.sub ? ' 的 ' + j.sub + ' 输出' : '') + ' 开始超出容差 ' + j.r[j.on].toFixed(1) + ' 倍'
+    : '每一层都在容差的 ' + th.toFixed(1) + ' 倍以内';
+  document.getElementById('lastb').textContent = 'block ' + (n - 2);
+  var notes = { tf32: '这里的容差是「C500 关闭 TF32 的严格 fp32」，所以默认 TF32 的结果相对它偏离数百倍：说明镜像默认的「fp32」并不是严格 fp32。',
+    eager_bad: '同一份 C500 数据，下一个案例只把容差换成同为 eager 实现的 5090 结果，判定就变成 PASS：容差基线必须和待检端使用同一种注意力实现。',
+    attn21_20: '第 21 层的偏差在残差流上只放大到 2.84 倍，略低于默认的 3 倍阈值。把滑块拖到 2.5 即可检出；阈值越低越灵敏，但也越容易把正常的实现差异误报为分叉。',
+    attn6_3: '这类很小的偏差在每层残差流上被 bf16 误差淹没。逐层对照擅长找「明显写错」的算子，对极细微的偏差可能漏报。' };
+  document.getElementById('note').textContent = notes[c.id] || '';
+  var names = c.cand.block.map(function (_, i) { return i === 0 ? 'emb' : String(i - 1); });
+  var pos = function (v) { return v > 0 ? v : null; };
+  c1.setOption({ animation: false, grid: { left: 58, right: 16, top: 30, bottom: 30 }, tooltip: { trigger: 'axis', valueFormatter: fmt },
+    legend: { top: 0, right: 0, textStyle: { color: '#6b7280' } },
+    xAxis: { type: 'category', data: names, axisLabel: { color: '#6b7280' } },
+    yAxis: { type: 'log', axisLabel: { color: '#6b7280' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
+    series: [{ name: '待检 · ' + c.labels[1], type: 'line', data: c.cand.block.map(pos), symbolSize: 4, lineStyle: { width: 2.5, color: '#c2410c' }, itemStyle: { color: '#c2410c' },
+      markLine: div ? { symbol: 'none', data: [{ xAxis: names[j.on] }], lineStyle: { color: '#c2410c' }, label: { formatter: 'onset' } } : undefined },
+      { name: '容差 · ' + c.labels[2], type: 'line', data: c.base.block.map(pos), symbolSize: 3, lineStyle: { width: 2, type: 'dashed', color: '#3b915d' }, itemStyle: { color: '#3b915d' } }] }, true);
+  c2.setOption({ animation: false, grid: { left: 58, right: 40, top: 16, bottom: 30 }, tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: names, axisLabel: { color: '#6b7280' } },
+    yAxis: { type: 'value', max: Math.max(th * 1.4, Math.min(j.max * 1.1, 20)), axisLabel: { color: '#6b7280', formatter: '{value}×' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
+    series: [{ type: 'bar', data: j.r.map(function (v, i) { return { value: Math.min(v, 20), itemStyle: { color: v > th ? '#c2410c' : '#a7d3b6', borderRadius: [3, 3, 0, 0] } }; }),
+      markLine: { symbol: 'none', data: [{ yAxis: th }], lineStyle: { color: '#6b7280', type: 'dashed' }, label: { formatter: th.toFixed(1) + '×' } } }] }, true);
+  var strip = document.getElementById('strip'); strip.innerHTML = '';
+  var cells = j.r.map(function () { var d = document.createElement('div'); d.className = 'cell'; strip.appendChild(d); return d; });
+  clearInterval(timer);
+  var paint = function (i) { cells[i].className = 'cell ' + (j.on === null || i < j.on ? 'ok' : (i === j.on ? 'bad' : 'after')); };
+  if (!animate) { cells.forEach(function (_, i) { paint(i); }); return; }
+  var k = 0; timer = setInterval(function () { paint(k); k++; if (k >= cells.length) clearInterval(timer); }, Math.max(18, 900 / cells.length));
+}
+function pick(id) {
+  cur = D.cases.find(function (c) { return c.id === id; });
+  document.querySelectorAll('.case').forEach(function (b) { b.classList.toggle('on', b.dataset.id === id); });
+  render(true);
+}
+document.getElementById('th').addEventListener('input', function (e) { th = +e.target.value; document.getElementById('thv').textContent = th.toFixed(1); render(false); });
+fetch('assets/play_data.json').then(function (r) { return r.json(); }).then(function (d) {
+  D = d;
+  d.cases.forEach(function (c) {
+    var b = document.createElement('button'); b.className = 'case'; b.dataset.id = c.id; b.textContent = c.title;
+    b.onclick = function () { pick(c.id); }; document.getElementById('g-' + c.group).appendChild(b);
+  });
+  pick(location.hash.slice(1) || 'mlp17');
+});
+</script>
+</body></html>
