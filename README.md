@@ -13,7 +13,7 @@
 [![MetaX C500](https://img.shields.io/badge/MetaX_C500-tested-c2410c.svg)](docs/mxmaca/phase-b/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**[▶ 在线体验（不用 GPU）](https://cookiesheep.github.io/univis/play.html)** · [🎬 4 分钟介绍视频](https://cookiesheep.github.io/univis/#video) · [📑 项目介绍 PDF](https://cookiesheep.github.io/univis/assets/slides/UniVis.pdf) · [在线画廊](https://cookiesheep.github.io/univis/) · [30 秒上手](#30-秒上手cpu无需-gpu) · [实测证据](#实测证据) · [支持契约](#精确支持契约与范围声明) · [English](README.en.md)
+**[▶ 在线体验（不用 GPU）](https://cookiesheep.github.io/univis/play.html)** · [🎬 60 秒影片](https://cookiesheep.github.io/univis/#film) · [📑 项目介绍 PDF](https://cookiesheep.github.io/univis/assets/slides/UniVis.pdf) · [官网](https://cookiesheep.github.io/univis/) · [30 秒上手](#30-秒上手cpu无需-gpu) · [实测证据](#实测证据) · [支持契约](#精确支持契约与范围声明) · [English](README.en.md)
 
 </div>
 
@@ -227,7 +227,7 @@ report_path = tracker.finish()                       # 自包含 HTML 报告
 ## 可复核的事实
 
 - 两种 GPU 真机实测：沐曦曦云 C500（MXMACA）与 NVIDIA L20。Qwen2.5 0.5B / 3B / 7B 和 TinyLlama-1.1B 做了两侧对照，Qwen3.6-27B 为 L20 单侧。
-- [在线画廊](https://cookiesheep.github.io/univis/)里有 7 份真机报告（C500 4 份、L20 3 份）和 1 份 CPU diff 报告，浏览器直接打开，不需要 GPU。
+- [官网](https://cookiesheep.github.io/univis/)里有 7 份真机报告（C500 4 份、L20 3 份）和 1 份 CPU diff 报告，浏览器直接打开，不需要 GPU。
 - C500 环境指纹（MXMACA 版本、mx-smi 输出）、原始 JSONL 和复现脚本全部入库：[docs/mxmaca/](docs/mxmaca/phase-a/README.md)。
 - C500 阶段 C 的环境指纹、逐层结果与录制脚本：[docs/mxmaca/stage-c/](docs/mxmaca/stage-c/README.md)。
 - 两例负结果完整公开（见上一节）。

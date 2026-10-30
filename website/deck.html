@@ -1,0 +1,153 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>UniVis 项目介绍</title>
+<style>
+@page{size:1920px 1080px;margin:0}
+:root{--bg:#06080a;--line:rgba(255,255,255,.1);--txt:#e9eeeb;--dim:#8b968f;--dim2:#5f6a64;--g:#4ade80;--o:#fb923c;--c:#22d3ee;--v:#a78bfa;
+--sans:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;--mono:Consolas,"Cascadia Mono",monospace}
+*{box-sizing:border-box}body{margin:0;background:#000;color:var(--txt);font-family:var(--sans);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.s{width:1920px;height:1080px;position:relative;overflow:hidden;page-break-after:always;padding:110px 130px;
+background:radial-gradient(900px 600px at 18% 12%,rgba(74,222,128,.10),transparent 70%),radial-gradient(800px 600px at 90% 90%,rgba(251,146,60,.07),transparent 70%),var(--bg)}
+.s:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:64px 64px;pointer-events:none}
+.s>*{position:relative}
+.k{font-family:var(--mono);color:var(--g);font-size:24px;letter-spacing:.08em;margin-bottom:26px}
+h1{font-size:120px;line-height:1.04;letter-spacing:-.04em;margin:0;font-weight:800}
+h2{font-size:72px;line-height:1.12;letter-spacing:-.03em;margin:0 0 26px;font-weight:800}
+.lead{font-size:30px;color:var(--dim);max-width:1300px;line-height:1.55;margin:0}
+.grad{background:linear-gradient(92deg,#fff,#c9f7dc 40%,var(--g) 70%,var(--o) 105%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.pn{position:absolute;right:130px;bottom:56px;font-family:var(--mono);font-size:20px;color:var(--dim2)}
+.brand{position:absolute;left:130px;bottom:56px;font-size:20px;color:var(--dim2);display:flex;align-items:center;gap:12px}
+.glyph{display:inline-flex;gap:3px;align-items:flex-end;height:26px}.glyph i{width:5px;border-radius:2px;background:var(--g)}.glyph i:nth-child(5){background:var(--o)}
+.card{border:1px solid var(--line);border-radius:28px;background:rgba(255,255,255,.035);padding:44px}
+.big{font-size:190px;font-weight:800;letter-spacing:-.05em;line-height:1}
+.row{display:flex;gap:32px}.col{flex:1}
+.chip{display:inline-block;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:10px 26px;font-size:24px;color:var(--dim);margin-right:16px}
+.chip b{color:var(--txt)}
+canvas{display:block}
+.mono{font-family:var(--mono)}
+.st .v{font-size:100px;font-weight:800;letter-spacing:-.04em;line-height:1}.st .l{font-size:26px;color:var(--dim);margin-top:16px;line-height:1.45}
+.step .n{font-family:var(--mono);color:var(--g);font-size:24px}.step h3{font-size:40px;margin:22px 0 16px}.step p{font-size:25px;color:var(--dim);line-height:1.6;margin:0}
+.term{background:#030504;border:1px solid rgba(255,255,255,.16);border-radius:24px;padding:40px 44px;font-family:var(--mono);font-size:28px;line-height:1.9;color:#cfd8d3;white-space:pre}
+.term .p{color:var(--g)}.term .c{color:var(--dim2)}.term .o{color:var(--o)}
+</style></head><body>
+
+<section class="s" style="display:flex;flex-direction:column;justify-content:center">
+<div class="k">开源 · 国产 GPU 适配 · MIT</div>
+<div style="display:flex;align-items:center;gap:28px;margin-bottom:30px"><span class="glyph" style="height:90px;gap:8px"><i style="height:30px;width:14px"></i><i style="height:52px;width:14px"></i><i style="height:40px;width:14px"></i><i style="height:66px;width:14px"></i><i style="height:90px;width:14px"></i><i style="height:56px;width:14px"></i></span><span style="font-size:96px;font-weight:800;letter-spacing:-.03em">UniVis</span></div>
+<h1>模型搬上国产 GPU，<br><span class="grad">哪一层算错了，一眼看见。</span></h1>
+<p class="lead" style="margin-top:40px">逐层对照两次运行，指出分叉从哪一层、哪个子层开始。已在沐曦曦云 C500 完成真机验证。</p>
+<div style="margin-top:56px"><span class="chip"><b>MetaX 曦云 C500</b> 真机验证</span><span class="chip"><b>pip install univis</b></span><span class="chip">cookiesheep.github.io/univis</span></div>
+</section>
+
+<section class="s"><div class="k">01 / 问题</div><h2>只看最终输出，分不出<br>「正常误差」和「算子写错」。</h2>
+<div class="row" style="margin-top:70px">
+<div class="card col"><div class="big" style="color:var(--g)">96.2%</div><p class="lead" style="margin-top:24px">数值栈完全正确的 bf16<br>与参考答案的 top-1 一致率</p></div>
+<div class="card col" style="border-color:rgba(251,146,60,.45)"><div class="big" style="color:var(--o)">96.2%</div><p class="lead" style="margin-top:24px">第 17 层 MLP 激活函数写错的 bf16<br>与参考答案的 top-1 一致率</p></div>
+</div><p class="lead" style="margin-top:40px;text-align:center;color:var(--txt)">一模一样。差异藏在中间某一层里。</p>
+<div class="brand"><span class="glyph"><i style="height:8px"></i><i style="height:14px"></i><i style="height:11px"></i><i style="height:18px"></i><i style="height:24px"></i><i style="height:15px"></i></span>UniVis</div><div class="pn">02</div></section>
+
+<section class="s"><div class="k">02 / 原理</div><h2>四步，全部在 forward hook 里完成。</h2>
+<p class="lead">不改模型、不搬 GB 级张量；两台机器各存几 MB 指纹，任何人都能在 CPU 上复核。</p>
+<div class="row" style="margin-top:70px">
+<div class="card col step"><div class="n">01</div><h3>Teacher forcing</h3><p>两端喂完全相同的 token，一次前向跑完，逐位置严格对齐。</p></div>
+<div class="card col step"><div class="n">02</div><h3>端侧草图</h3><p>每层出口投影到 64 维；投影是线性的，P(a)−P(b)=P(a−b)。</p></div>
+<div class="card col step"><div class="n">03</div><h3>容差基线</h3><p>以已知正常的同精度实现作为「正常误差」，不拍脑袋定阈值。</p></div>
+<div class="card col step" style="border-color:rgba(251,146,60,.4)"><div class="n" style="color:var(--o)">04</div><h3>三态判定</h3><p>PASS · DIVERGE（起点层 + attention / MLP）· UNKNOWN，可接入 CI。</p></div>
+</div><div class="brand"><span class="glyph"><i style="height:8px"></i><i style="height:14px"></i><i style="height:11px"></i><i style="height:18px"></i><i style="height:24px"></i><i style="height:15px"></i></span>UniVis</div><div class="pn">03</div></section>
+
+<section class="s"><div class="k">03 / 一行命令</div><h2>30 秒，在 CPU 上看到分叉起点。</h2>
+<div class="row" style="margin-top:50px;align-items:stretch">
+<div class="term" style="flex:0 0 760px"><span class="p">$</span> pip install "univis[hf]"
+<span class="p">$</span> univis diff demo
+
+<span class="c">correct bf16 : top-1 96.2%</span>
+<span class="c">broken  bf16 : top-1 96.2%</span>
+<span class="o">DIVERGE at block 17,</span>
+<span class="o">MLP output (3.3x)</span></div>
+<div class="card col" style="padding:30px"><div class="mono" style="font-size:20px;color:var(--dim2);margin-bottom:8px">relative error per block · SmolLM2-135M</div><canvas id="cv-scan" width="860" height="520"></canvas></div>
+</div><div class="brand"><span class="glyph"><i style="height:8px"></i><i style="height:14px"></i><i style="height:11px"></i><i style="height:18px"></i><i style="height:24px"></i><i style="height:15px"></i></span>UniVis</div><div class="pn">04</div></section>
+
+<section class="s"><div class="k">04 / 故障注入</div><h2>明显写错的算子，全部定位到正确的层。</h2>
+<div class="row" style="margin-top:50px">
+<div class="card col" style="flex:2;padding:30px"><canvas id="cv-fault" width="1060" height="560"></canvas></div>
+<div class="col" style="display:flex;flex-direction:column;gap:32px">
+<div class="card st"><div class="v" style="color:var(--o)">5 / 5</div><div class="l">MLP 与 attention 故障<br>定位到正确的层和子层</div></div>
+<div class="card st"><div class="v" style="font-size:64px">如实标边界</div><div class="l">3% 细微偏差会被 bf16 噪声淹没；深层 20% 偏差为 2.84×</div></div>
+</div></div><div class="brand"><span class="glyph"><i style="height:8px"></i><i style="height:14px"></i><i style="height:11px"></i><i style="height:18px"></i><i style="height:24px"></i><i style="height:15px"></i></span>UniVis</div><div class="pn">05</div></section>
+
+<section class="s"><div class="k">05 / 沐曦曦云 C500 真机</div><h2>三个规模，每一层都在正常 bf16 误差之内。</h2>
+<div class="row" style="margin-top:40px">
+<div class="card col" style="flex:2;padding:30px"><div class="mono" style="font-size:20px;color:var(--dim2)">每层：C500 误差 ÷ RTX 5090 bf16 误差　<span style="color:var(--v)">■ 0.5B</span>　<span style="color:var(--o)">■ 3B</span>　<span style="color:var(--g)">■ 7B</span>　<span style="color:#ef4444">— 3× 阈值</span></div><canvas id="cv-ratio" width="1060" height="540"></canvas></div>
+<div class="col" style="display:flex;flex-direction:column;gap:32px">
+<div class="card st"><div class="v" style="color:var(--g)">3 / 3</div><div class="l">Qwen2.5 0.5B / 3B / 7B 全部 PASS</div></div>
+<div class="card st"><div class="v">≤ 1.35×</div><div class="l">每层误差相对 NVIDIA bf16 的最大倍数</div></div>
+</div></div>
+<p style="font-size:20px;color:var(--dim2);margin-top:26px">参考：RTX 5090 fp32　容差：RTX 5090 bf16　C500：MACA 3.3.0.15 · torch 2.8.0+metax3.3.0.2　结论只覆盖所测模型与软件栈</p>
+<div class="pn">06</div></section>
+
+<section class="s"><div class="k">06 / 两个发现</div><h2>换算子不出错，默认设置要当心。</h2>
+<div class="row" style="margin-top:60px">
+<div class="card col"><div class="big" style="color:var(--c);font-size:150px">1.47×</div><h3 style="font-size:42px;margin:26px 0 14px">沐曦 flash-attention：更快，精度 PASS</h3><p class="lead" style="font-size:26px">1024 token、3B 模型前向 109 ms → 74 ms；逐层精度仍在容差内。</p></div>
+<div class="card col" style="border-color:rgba(251,146,60,.45)"><div class="big" style="color:var(--o);font-size:150px">290×</div><h3 style="font-size:42px;margin:26px 0 14px">镜像里的「fp32」默认按 TF32 计算</h3><p class="lead" style="font-size:26px">相对严格 fp32 的误差。关闭：<span class="mono" style="color:var(--c);font-size:24px">TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0</span></p></div>
+</div><div class="brand"><span class="glyph"><i style="height:8px"></i><i style="height:14px"></i><i style="height:11px"></i><i style="height:18px"></i><i style="height:24px"></i><i style="height:15px"></i></span>UniVis</div><div class="pn">07</div></section>
+
+<section class="s"><div class="k">07 / 严谨性</div><h2>一次假警报，我们用阳性对照查清了原因。</h2>
+<div class="row" style="margin-top:60px">
+<div class="card col st"><div class="mono" style="color:var(--o);font-size:28px;margin-bottom:22px">DIVERGE</div><div class="v" style="color:var(--o);font-size:130px">3.00×</div><div class="l">C500 eager<br>对 5090 sdpa 基线</div></div>
+<div class="card col st"><div class="mono" style="color:var(--g);font-size:28px;margin-bottom:22px">PASS</div><div class="v" style="color:var(--g);font-size:130px">1.02×</div><div class="l">C500 eager<br>对 5090 eager 基线</div></div>
+<div class="card col st"><div class="mono" style="color:var(--dim);font-size:28px;margin-bottom:22px">对照</div><div class="v" style="color:var(--dim);font-size:130px">2.95×</div><div class="l">5090 自身<br>eager 对 sdpa</div></div>
+</div><p class="lead" style="margin-top:44px;color:var(--txt)">结论写进使用契约：容差基线必须与待检端使用同一种注意力实现。</p>
+<div class="pn">08</div></section>
+
+<section class="s"><div class="k">08 / 无卡可审计</div><h2>每一个结论，都能在浏览器里复核。</h2>
+<div class="row" style="margin-top:60px;flex-wrap:wrap">
+<div class="card col st"><div class="v" style="color:var(--g)">94</div><div class="l">单元测试 · CI</div></div>
+<div class="card col st"><div class="v">0.7.1</div><div class="l">PyPI 已发布</div></div>
+<div class="card col st"><div class="v">100%</div><div class="l">真机结论附环境指纹与脚本</div></div>
+<div class="card col st"><div class="v" style="color:var(--o)">2</div><div class="l">例负结果完整公开</div></div>
+</div>
+<div class="card" style="margin-top:32px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:40px;font-weight:800">在线体验：亲手弄坏一层，看它能不能找出来</div><div class="lead" style="font-size:26px;margin-top:10px">不用安装，不用 GPU，全部真实数据</div></div><div class="mono" style="font-size:30px;color:var(--g)">cookiesheep.github.io/univis/play.html</div></div>
+<div class="pn">09</div></section>
+
+<section class="s" style="display:flex;flex-direction:column;justify-content:center">
+<div class="k">路线图</div>
+<div class="row" style="gap:20px;margin-bottom:90px">
+<div class="card col" style="padding:30px"><div class="mono" style="color:var(--g);font-size:22px">A · 08-19 ✓</div><div style="font-size:28px;margin-top:12px">C500 采集通路</div></div>
+<div class="card col" style="padding:30px"><div class="mono" style="color:var(--g);font-size:22px">B · 08-19 ✓</div><div style="font-size:28px;margin-top:12px">跨规模一致性</div></div>
+<div class="card col" style="padding:30px;border-color:rgba(74,222,128,.5)"><div class="mono" style="color:var(--g);font-size:22px">C · 10-30 ✓</div><div style="font-size:28px;margin-top:12px">逐层对照真机验证</div></div>
+<div class="card col" style="padding:30px"><div class="mono" style="color:var(--dim2);font-size:22px">C+ · 计划</div><div style="font-size:28px;margin-top:12px;color:var(--dim)">逐层耗时 → FlagGems</div></div>
+<div class="card col" style="padding:30px"><div class="mono" style="color:var(--dim2);font-size:22px">D · 计划</div><div style="font-size:28px;margin-top:12px;color:var(--dim)">量化前后对照</div></div>
+</div>
+<h1 style="font-size:100px">让每个模型，<br><span class="grad">在国产 GPU 上算得对。</span></h1>
+<div style="margin-top:56px"><span class="chip"><b>github.com/cookiesheep/univis</b></span><span class="chip"><b>pip install univis</b></span><span class="chip">开源 · MIT</span></div>
+</section>
+
+<script>
+window.ready = fetch('assets/play_data.json').then(r => r.json()).then(d => {
+  const cs = {}; d.cases.forEach(c => cs[c.id] = c);
+  const lg = v => v > 0 ? Math.max(0, Math.min(1, (Math.log10(v) + 3.2) / 2.4)) : 0;
+  // scan
+  let c = document.getElementById('cv-scan'), x = c.getContext('2d'), f = cs.mlp17, n = f.cand.block.length;
+  const ratio = f.cand.block.map((v, i) => v > 1e-3 ? v / f.base.block[i] : 1), on = ratio.findIndex(v => v > 3);
+  const cw = (c.width - 40) / n, H = c.height - 40;
+  for (let i = 0; i < n; i++) { const h = Math.max(6, lg(f.cand.block[i]) * (H - 20)), hb = Math.max(6, lg(f.base.block[i]) * (H - 20)), X = 20 + i * cw + cw * .18, w = cw * .64;
+    x.fillStyle = 'rgba(255,255,255,.08)'; x.fillRect(X, H - hb, w, hb); x.fillStyle = i >= on ? (i === on ? '#fb923c' : 'rgba(251,146,60,.55)') : 'rgba(74,222,128,.8)';
+    if (i === on) { x.shadowColor = '#fb923c'; x.shadowBlur = 30; } x.fillRect(X, H - h, w, h); x.shadowBlur = 0; }
+  x.fillStyle = '#fb923c'; x.font = 'bold 26px Consolas'; x.fillText('onset · block 17 · MLP', 20 + on * cw - 150, 34);
+  // fault bars
+  c = document.getElementById('cv-fault'); x = c.getContext('2d');
+  const fb = [['L3 MLP', 8.74], ['L10 MLP', 14.29], ['L17 MLP', 3.31], ['L24 MLP', 3.55], ['L6 attn', 3.21], ['L21 attn', 2.84], ['L6 attn 3%', 1.13]];
+  const Y = v => 500 - v / 16 * 460, bw = (c.width - 120) / fb.length;
+  x.font = '22px "Microsoft YaHei"';
+  [0, 4, 8, 12, 16].forEach(v => { x.strokeStyle = 'rgba(255,255,255,.07)'; x.beginPath(); x.moveTo(70, Y(v)); x.lineTo(c.width, Y(v)); x.stroke(); x.fillStyle = '#5f6a64'; x.fillText(v + '×', 10, Y(v) + 8); });
+  fb.forEach((b, i) => { const X = 80 + i * bw + bw * .18, w = bw * .64, det = b[1] > 3; x.fillStyle = det ? '#fb923c' : 'rgba(255,255,255,.25)'; x.fillRect(X, Y(b[1]), w, 500 - Y(b[1]));
+    x.fillStyle = '#e9eeeb'; x.font = 'bold 24px Consolas'; x.fillText(b[1].toFixed(1) + '×', X, Y(b[1]) - 12); x.fillStyle = '#8b968f'; x.font = '21px "Microsoft YaHei"'; x.fillText(b[0], X - 6, 540); });
+  x.setLineDash([10, 8]); x.strokeStyle = '#ef4444'; x.lineWidth = 3; x.beginPath(); x.moveTo(70, Y(3)); x.lineTo(c.width, Y(3)); x.stroke(); x.setLineDash([]);
+  // ratio lines
+  c = document.getElementById('cv-ratio'); x = c.getContext('2d'); const L = 70, R = c.width - 70, T = 20, B = c.height - 40, Yr = v => T + (B - T) * (1 - v / 3.6);
+  x.font = '22px Consolas'; [0, 1, 2, 3].forEach(v => { x.strokeStyle = 'rgba(255,255,255,.07)'; x.beginPath(); x.moveTo(L, Yr(v)); x.lineTo(R, Yr(v)); x.stroke(); x.fillStyle = '#5f6a64'; x.fillText(v + '×', 14, Yr(v) + 8); });
+  x.setLineDash([10, 8]); x.strokeStyle = '#ef4444'; x.lineWidth = 3; x.beginPath(); x.moveTo(L, Yr(3)); x.lineTo(R, Yr(3)); x.stroke(); x.setLineDash([]);
+  [['c500_0.5B', '#a78bfa'], ['c500_3B', '#fb923c'], ['c500_7B', '#4ade80']].forEach(s => { const cc = cs[s[0]], r = cc.cand.block.map((v, i) => v > 1e-3 ? v / cc.base.block[i] : 1).slice(1), m = r.length;
+    x.strokeStyle = s[1]; x.lineWidth = 5; x.shadowColor = s[1]; x.shadowBlur = 12; x.beginPath(); r.forEach((v, i) => { const X = L + (R - L) * i / (m - 1); i ? x.lineTo(X, Yr(v)) : x.moveTo(X, Yr(v)); }); x.stroke(); x.shadowBlur = 0; });
+  x.fillStyle = '#5f6a64'; x.font = '22px "Microsoft YaHei"'; x.fillText('浅层', L, c.height - 6); x.fillText('深层', R - 50, c.height - 6);
+  return true;
+});
+</script></body></html>

@@ -7,38 +7,38 @@
 <meta name="description" content="亲手弄坏模型的一层，看 UniVis 能不能找出来；查看沐曦曦云 C500 对 NVIDIA RTX 5090 的逐层对照真机数据。">
 <script src="assets/echarts.min.js"></script>
 <style>
-:root{--bg:#faf9f9;--card:#fff;--txt:#1f2328;--dim:#6b7280;--line:#e3e5e8;--green:#3b915d;--orange:#c2410c;--soft:#f3f4f6}
+:root{--bg:#06080a;--card:rgba(255,255,255,.035);--txt:#e9eeeb;--dim:#8b968f;--line:rgba(255,255,255,.09);--green:#4ade80;--orange:#fb923c;--soft:rgba(255,255,255,.05)}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.65 "PingFang SC","Microsoft YaHei","Noto Sans CJK SC",-apple-system,sans-serif}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.65 -apple-system,"Inter","PingFang SC","Microsoft YaHei","Noto Sans CJK SC",-apple-system,sans-serif}
 a{color:var(--green)}
 .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .brand{font-weight:800;font-size:20px;letter-spacing:-.01em}.brand span{color:var(--dim);font-weight:500;font-size:14px;margin-left:8px}
 .links a{margin-left:16px;font-size:14px;color:var(--dim);text-decoration:none}.links a:hover{color:var(--green)}
 h1{font-size:clamp(24px,3.4vw,34px);margin:22px 0 6px;letter-spacing:-.01em}
-.lede{color:#374151;max-width:820px;margin:0 0 22px}
+.lede{color:var(--dim);max-width:820px;margin:0 0 22px}
 .grid{display:grid;grid-template-columns:320px 1fr;gap:18px}
 @media(max-width:900px){.grid{grid-template-columns:1fr}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
 .side h3{font-size:13px;letter-spacing:.08em;color:var(--dim);margin:14px 0 8px;font-weight:600}
 .side h3:first-child{margin-top:0}
 .cases{display:flex;flex-direction:column;gap:6px}
-.case{text-align:left;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit;font-size:13.5px;color:var(--txt);transition:.15s}
-.case:hover{border-color:#b7c9bd;background:#f7faf8}
-.case.on{border-color:var(--green);background:#eef6f1;box-shadow:inset 3px 0 0 var(--green)}
+.case{text-align:left;border:1px solid var(--line);background:rgba(255,255,255,.03);border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit;font-size:13.5px;color:var(--txt);transition:.15s}
+.case:hover{border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.05)}
+.case.on{border-color:var(--green);background:rgba(74,222,128,.1);box-shadow:inset 3px 0 0 var(--green)}
 .slider{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 .slider label{font-size:13px;color:var(--dim)}.slider b{color:var(--txt)}
 input[type=range]{width:100%;accent-color:var(--green)}
 .verdict{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
 .pill{display:inline-block;padding:4px 14px;border-radius:999px;font-weight:700;font-size:14px;color:#fff}
-.pass{background:var(--green)}.div{background:var(--orange)}
+.pass{background:var(--green);color:#06120a}.div{background:var(--orange)}
 .vt{flex:1;min-width:260px}.vt .t{font-size:18px;font-weight:650;margin:2px 0 4px}.vt .d{color:var(--dim);font-size:13.5px}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
 @media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}}
 .kpi{background:var(--soft);border-radius:10px;padding:10px 12px}.kpi span{display:block;font-size:12px;color:var(--dim)}.kpi b{font-size:20px}
 .strip{display:flex;gap:2px;margin:16px 0 4px;height:34px}
-.cell{flex:1;border-radius:3px;background:#e5e7eb;transition:background .12s}
-.cell.ok{background:#9fd0b1}.cell.bad{background:var(--orange)}.cell.after{background:#f0b590}
+.cell{flex:1;border-radius:3px;background:rgba(255,255,255,.08);transition:background .12s}
+.cell.ok{background:rgba(74,222,128,.7)}.cell.bad{background:var(--orange)}.cell.after{background:rgba(251,146,60,.45)}
 .strip-cap{display:flex;justify-content:space-between;font-size:11.5px;color:var(--dim)}
 .chart{height:300px;margin-top:6px}.chart.small{height:220px}
 .ctitle{font-size:13px;color:var(--dim);margin-top:14px}
@@ -52,7 +52,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:5px;font-size:12.5px}
 </head>
 <body><div class="wrap">
 <div class="top"><div class="brand">UniVis<span>在线体验 · 逐层对照</span></div>
-<div class="links"><a href="./">证据画廊</a><a href="https://github.com/cookiesheep/univis">GitHub</a><a href="https://pypi.org/project/univis/">PyPI</a></div></div>
+<div class="links"><a href="./">官网</a><a href="evidence.html">证据库</a><a href="https://github.com/cookiesheep/univis">GitHub</a><a href="https://pypi.org/project/univis/">PyPI</a></div></div>
 <h1>亲手弄坏一层，看 UniVis 能不能找出来</h1>
 <p class="lede">左边选一个案例，UniVis 会逐层比对待检端和参考端，判断误差是在「正常精度范围」内，还是从某一层开始超出。所有数据都来自真实运行：故障注入在 CPU 上完成，C500 对照来自沐曦曦云 C500 与 NVIDIA RTX 5090 真机。拖动阈值滑块可以看判定如何随之变化。</p>
 <div class="grid">
@@ -122,14 +122,14 @@ function render(animate) {
   c1.setOption({ animation: false, grid: { left: 58, right: 16, top: 30, bottom: 30 }, tooltip: { trigger: 'axis', valueFormatter: fmt },
     legend: { top: 0, right: 0, textStyle: { color: '#6b7280' } },
     xAxis: { type: 'category', data: names, axisLabel: { color: '#6b7280' } },
-    yAxis: { type: 'log', axisLabel: { color: '#6b7280' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
-    series: [{ name: '待检 · ' + c.labels[1], type: 'line', data: c.cand.block.map(pos), symbolSize: 4, lineStyle: { width: 2.5, color: '#c2410c' }, itemStyle: { color: '#c2410c' },
-      markLine: div ? { symbol: 'none', data: [{ xAxis: names[j.on] }], lineStyle: { color: '#c2410c' }, label: { formatter: 'onset' } } : undefined },
-      { name: '容差 · ' + c.labels[2], type: 'line', data: c.base.block.map(pos), symbolSize: 3, lineStyle: { width: 2, type: 'dashed', color: '#3b915d' }, itemStyle: { color: '#3b915d' } }] }, true);
+    yAxis: { type: 'log', axisLabel: { color: '#6b7280' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,.06)' } } },
+    series: [{ name: '待检 · ' + c.labels[1], type: 'line', data: c.cand.block.map(pos), symbolSize: 4, lineStyle: { width: 2.5, color: '#fb923c' }, itemStyle: { color: '#fb923c' },
+      markLine: div ? { symbol: 'none', data: [{ xAxis: names[j.on] }], lineStyle: { color: '#fb923c' }, label: { formatter: 'onset' } } : undefined },
+      { name: '容差 · ' + c.labels[2], type: 'line', data: c.base.block.map(pos), symbolSize: 3, lineStyle: { width: 2, type: 'dashed', color: '#4ade80' }, itemStyle: { color: '#4ade80' } }] }, true);
   c2.setOption({ animation: false, grid: { left: 58, right: 40, top: 16, bottom: 30 }, tooltip: { trigger: 'axis' },
     xAxis: { type: 'category', data: names, axisLabel: { color: '#6b7280' } },
-    yAxis: { type: 'value', max: Math.max(th * 1.4, Math.min(j.max * 1.1, 20)), axisLabel: { color: '#6b7280', formatter: '{value}×' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
-    series: [{ type: 'bar', data: j.r.map(function (v, i) { return { value: Math.min(v, 20), itemStyle: { color: v > th ? '#c2410c' : '#a7d3b6', borderRadius: [3, 3, 0, 0] } }; }),
+    yAxis: { type: 'value', max: Math.max(th * 1.4, Math.min(j.max * 1.1, 20)), axisLabel: { color: '#6b7280', formatter: '{value}×' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,.06)' } } },
+    series: [{ type: 'bar', data: j.r.map(function (v, i) { return { value: Math.min(v, 20), itemStyle: { color: v > th ? '#fb923c' : 'rgba(74,222,128,.5)', borderRadius: [3, 3, 0, 0] } }; }),
       markLine: { symbol: 'none', data: [{ yAxis: th }], lineStyle: { color: '#6b7280', type: 'dashed' }, label: { formatter: th.toFixed(1) + '×' } } }] }, true);
   var strip = document.getElementById('strip'); strip.innerHTML = '';
   var cells = j.r.map(function () { var d = document.createElement('div'); d.className = 'cell'; strip.appendChild(d); return d; });
