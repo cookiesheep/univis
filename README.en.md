@@ -1,282 +1,242 @@
 <div align="center">
 
-# UniVis
+<img src="https://cookiesheep.github.io/univis/assets/img/hero.png" alt="UniVis — layer-wise A/B for LLMs on domestic GPUs" width="100%">
 
-**Find out which layers of your LLM actually compute at inference — and which are idle.**
+**Your model now runs on a domestic GPU. Is it computing the right thing — and if not, from which layer on?**
 
-*找出大模型推理时哪些层在空转浪费算力 —— Transformer 推理冗余诊断与可视化工具*
-
-`AI Infra · LLM inference optimization & deployment`
-
-**[🎨 Online gallery](https://cookiesheep.github.io/univis/) — real-machine reports auditable in-browser (no GPU needed) · cross-hardware evidence · interactive demos**
+*国产 GPU 上的大模型，逐层对照 — MetaX C500 · NVIDIA · CPU*
 
 [![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
-[![PyPI Downloads](https://img.shields.io/pypi/dm/univis.svg)](https://pypistats.org/packages/univis)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-83-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-91-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
+[![MetaX C500](https://img.shields.io/badge/MetaX_C500-tested-c2410c.svg)](docs/mxmaca/phase-b/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-English · [简体中文](README.md)
+[Gallery](https://cookiesheep.github.io/univis/) · [30-second start](#30-second-start-cpu-no-gpu) · [Evidence](#evidence) · [Support contract](#support-contract-and-scope) · [简体中文](README.md)
 
 </div>
 
-<img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="UniVis Dashboard" width="100%">
+## Why
 
-UniVis attaches to any PyTorch / HuggingFace Transformer via zero-intrusion `forward` hooks, reduces every layer's activations to scalar metrics **at the edge (inside the hook)** — only ~1–2 KB per step — and streams them as JSONL / WebSocket into a real-time dashboard or a standalone offline HTML report. It answers one question: **at inference time, which layers actually compute, and which are redundant.**
+Move a model to another GPU, another software stack, another kernel library, or quantize it, and the output always changes a little. bf16 has error to begin with. The hard question is: **is this difference normal precision noise, or did a kernel in some layer go wrong?**
 
-UniVis is a **measurement & visualization** tool. It does not modify, prune, or accelerate your model — it gives you the evidence to decide what to optimize, plus an experimental path to act on it (Pilot).
+The final output cannot tell you. In the experiment below, a correct numeric stack and a stack with one wrong kernel in block 17 agree with the reference top-1 **equally: 96.2%**.
 
----
+UniVis compares layer by layer. Both sides consume the same tokens, each layer's output leaves a tiny numeric fingerprint, and the fingerprints are compared into one of three verdicts:
 
-## ✨ Showcase
-
-<table>
-<tr>
-<td width="50%" align="center"><b>Real-time Dashboard</b></td>
-<td width="50%" align="center"><b>Model MRI · concentric rings</b></td>
-</tr>
-<tr>
-<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="dashboard"></td>
-<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-mri.png" alt="model MRI"></td>
-</tr>
-<tr>
-<td width="50%" align="center"><sub>Qwen2.5-7B inference live on MetaX Xiyun C500: heatmap grows left-to-right as tokens are generated (plasma: dark = redundant, bright = active)</sub></td>
-<td width="50%" align="center"><sub>Each layer as a ring — orange = active, gray-green = redundant. Spot the idle layers at a glance.</sub></td>
-</tr>
-<tr>
-<td width="50%" align="center"><b>Layer pulse + data river</b></td>
-<td width="50%" align="center"><b>Multi-model comparison</b></td>
-</tr>
-<tr>
-<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-pulse.png" alt="layer pulse"></td>
-<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-comparison.png" alt="comparison"></td>
-</tr>
-<tr>
-<td width="50%" align="center"><sub>A sparkline per layer: flat = redundant, spiking = active; ThemeRiver shows activity over tokens</sub></td>
-<td width="50%" align="center"><sub><code>univis compare</code> cross-model redundancy distribution</sub></td>
-</tr>
-</table>
-
-## Why UniVis
-
-Transformer inference cost and memory grow explosively with parameter count, yet not every layer or generation step contributes equally — saving compute means saving money, which matters all the more when accelerator capacity is scarce. Before optimizing, you need to know where the redundancy is. Existing tools look elsewhere:
-
-| Tool | Phase | Granularity | Intrusiveness | Barrier |
-|---|---|---|---|---|
-| TensorBoard / W&B | training | macro scalars (loss, …) | instrumentation | low |
-| BertViz | inference | attention semantics | custom scripts | medium |
-| Nsight & profilers | inference | GPU operators / kernels | environment-level | high |
-| **UniVis** | **inference** | **per-layer × per-token redundancy** | **zero-intrusion hooks** | **low** |
-
-UniVis fills the missing semantic layer in between: **per-layer, per-token redundancy during inference**, at a few KB per step.
-
-## Domestic accelerators & MXMACA adaptation
-
-UniVis's implementation is inherently portable across hardware — every claim below is independently checkable:
-
-- **Pure PyTorch `forward` hooks** — no CUDA-specific API dependency whatsoever;
-- metrics computed **at the edge** (inside the hook), ~1–2 KB per step, never a new bottleneck;
-- the offline path (JSONL → HTML report) runs on **CPU only**;
-- no dependency on any GPU vendor's profiler toolchain.
-
-### Environment matrix
-
-| Environment | Hardware | Status | Verified content |
-|---|---|---|---|
-| NVIDIA L20 (48GB) | NVIDIA GPU | ✅ **verified** | full diagnostics on Qwen2.5-0.5B / 3B / 7B + 27B-class hybrid (~54× parameter span) |
-| CPU (no GPU) | — | ✅ **verified** | full 83-test suite, offline report rendering |
-| MetaX Xiyun C500 (sGPU slice instance) | MetaX GPU + MXMACA stack | ✅ **phases A + B verified** | cross-hardware comparison Qwen2.5-0.5B / 3B / 7B vs. NVIDIA L20 (profile agreement r ≥ 0.9998), [evidence archive](docs/mxmaca/phase-b/README.md) |
-
-### Staged roadmap
-
-| Phase | Goal | Completion criterion | Status |
-|---|---|---|---|
-| A | metric-collection pipeline on Xiyun C500 | one full Qwen2.5-0.5B generation producing an HTML report + archived JSONL + environment fingerprint (exact MXMACA / mcPyTorch versions + `mx-smi` output) | ✅ **completed (2026-08-19)**, [evidence](docs/mxmaca/phase-a/README.md) |
-| B | cross-scale redundancy baseline on C500 | baseline reports for 0.5B / 3B / 7B + a same-model, same-prompt comparison table vs. NVIDIA L20 | ✅ **completed (2026-08-19)**: profile agreement r ≥ 0.9998 at all three scales, [evidence](docs/mxmaca/phase-b/README.md) (27B-class needs a full C500 — later scope) |
-| C | feed diagnostics back into the MetaX ecosystem | use redundancy findings as input to FlagGems / mcTriton operator optimization | exploratory |
-
-### Exact support contract & scope statement
-
-| Item | Current contract |
+| Verdict | Meaning |
 |---|---|
-| Models tested | Qwen2.5-0.5B / 3B / 7B-Instruct (bf16), Qwen3.6-27B (hybrid) |
-| Auto-detected architectures | GPT-2 family; LLaMA family (LLaMA 1/2/3, Mistral, Mixtral); Qwen family (1.5 / 2 / 2.5 / 3); BERT family (BERT, RoBERTa, ALBERT, DeBERTa) |
-| Software stack | NVIDIA: Python ≥ 3.10, PyTorch ≥ 2.0, HF transformers (tested on L20); MetaX: torch 2.8.0+metax3.3.0.2, MACA 3.3.0.15, transformers 4.57.3 (tested in C500 phase A) |
-| Hardware | NVIDIA GPU (CUDA) and CPU verified; MetaX MXMACA adaptation in progress (see above) |
+| **PASS** | Every layer stays within 3× the error of a known-good implementation in the same precision |
+| **DIVERGE** | Names the **first** layer whose error leaves the tolerance; look at the kernels that layer uses |
+| **UNKNOWN** | No tolerance baseline was given; abrupt jumps are ruled out, but "normal" is not claimed |
 
-**Scope statement:** verification covers only the models and architectures listed above; redundancy findings do not extrapolate to untested models. That is precisely UniVis's value — run one diagnostic on a new model and get *its own* redundancy profile before optimizing anything.
+## 30-second start (CPU, no GPU)
 
-### Auditable without a GPU
+```bash
+pip install "univis[hf]"
+univis diff demo
+```
 
-Everything UniVis produces — raw JSONL, self-contained HTML reports, environment fingerprints — can be reviewed on a machine with **no GPU at all**. The diagnostic tool is itself the evidence chain: the complete C500 phase-A evidence (data, report, fingerprint) is published under [docs/mxmaca/phase-a/](docs/mxmaca/phase-a/README.md), auditable by anyone without renting a card.
+```
+[1/3] fp32 reference: HuggingFaceTB/SmolLM2-135M on CPU
+[2/3] bf16, correct (the tolerance baseline)
+[3/3] bf16 with a wrong activation kernel in block 17
 
-We look forward to collaborating with MetaX and the MXMACA community on test resources, technical guidance, and ecosystem integration. Adaptation details and fingerprint conventions: [docs/mxmaca-adaptation.md](docs/mxmaca-adaptation.md).
+  correct bf16 : top-1 96.2%  (used as the tolerance baseline)
+  broken  bf16 : top-1 96.2%  DIVERGE: error first exceeds the baseline error by 3.3x at block 17 (relative error 4.85e-02).
 
-## Core features
+Same output-level agreement, but the layer view pinpoints the block.
+Report: univis_diff_demo.html
+```
 
-- **Low-intrusion SDK** — one line, `univis.attach(model)`: detection auto-identifies the architecture from the model config, probes collect per-layer data via `forward` hooks, zero changes to the target model. 5 core metrics: relative delta, inter-layer cosine similarity, activation sparsity, prediction entropy, VRAM delta.
-- **Real-time dashboard** — React 18 + TypeScript + ECharts; the heatmap grows left-to-right as tokens are generated, with statistics panels, filters, and click interactions.
-- **Offline HTML report** — single file, zero dependencies, opens anywhere: model-MRI rings, layer-pulse sparklines, ThemeRiver, redundancy ranking with trend annotations.
-- **Multi-model comparison CLI** — `univis compare` for cross-model redundancy distributions, with radar charts and tables.
-- **Pilot intervention (experimental)** — turning measurement into action: confidence-based early-exit during generation; the negative result of the layer-skip route is fully public (below).
-- **Engineering quality** — 83 unit tests green, GitHub Actions CI, 3 CLI entry points, full type hints on Python 3.10+.
-
-## Empirical findings
-
-### 1. Middle-layer redundancy is most pronounced — and holds across scales
+The first run downloads SmolLM2-135M (about 270 MB); with the model cached it takes about 40 s on the CPU of an ordinary Windows PC. It runs the same model three times (fp32 reference, correct bf16, bf16 with block 17's activation swapped) and writes a self-contained HTML report ([open online](https://cookiesheep.github.io/univis/assets/reports/diff_cpu_demo.html)):
 
 <div align="center">
-
-<img src="https://cookiesheep.github.io/univis/assets/img/cross-scale.png" alt="cross-scale redundancy" width="92%">
-
-<sub>Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B (hybrid), ~54× parameter span. With layer depth normalized to [0,1], the middle segment shows markedly higher cosine similarity than shallow/deep layers in all four models.</sub>
-
+<img src="https://cookiesheep.github.io/univis/assets/img/diff-report.png" alt="univis diff report" width="88%">
 </div>
 
-### 2. A public failure: layer-skip does not hold
+## On your own model
 
-Pilot v1 followed the intuition "high cosine similarity = skippable" and skipped middle redundant layers. Measured on Qwen2.5-7B (NVIDIA L20):
+```bash
+# 1. reference: fp32 (CPU is fine)
+univis diff record Qwen/Qwen2.5-0.5B-Instruct --dtype fp32 --device cpu -o ref.json
 
-| Configuration | perplexity | Change |
+# 2. tolerance baseline: a known-good bf16 implementation, e.g. an NVIDIA GPU
+univis diff record Qwen/Qwen2.5-0.5B-Instruct --dtype bf16 --tokens-from ref.json \
+    -o nvidia.json --label "NVIDIA bf16"
+
+# 3. candidate: e.g. MetaX C500
+univis diff record Qwen/Qwen2.5-0.5B-Instruct --dtype bf16 --tokens-from ref.json \
+    -o c500.json --label "MetaX C500 bf16"
+
+# 4. compare layer by layer
+univis diff compare ref.json c500.json --baseline nvidia.json -o report.html
+```
+
+- The three fingerprints can be recorded on three different machines and compared anywhere. Each is a JSON file of a few MB that can be opened, compared, and audited without a GPU.
+- `--tokens-from` guarantees every side consumes exactly the same token ids.
+- Exit codes `0` PASS, `1` DIVERGE, `3` UNKNOWN make it a drop-in CI regression check for stack upgrades and kernel swaps.
+
+Python API:
+
+```python
+from univis import diff
+
+ref = diff.record(model_fp32, tokenizer, label='fp32 reference')
+cand = diff.record(model_on_c500, token_ids=ref['token_ids'], label='C500')
+result = diff.compare(ref, cand, baseline=known_good)
+print(result['verdict'], result['summary'])
+diff.render_html(result, 'report.html')
+```
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["same tokens<br/>teacher forcing"] --> B["every block output<br/>forward hook"]
+    B --> C["on-device random projection<br/>hidden → 64 dims"]
+    C --> D["fingerprint JSON<br/>a few MB · portable"]
+    D --> E["per-layer relative error<br/>vs tolerance baseline"]
+    E --> F{"PASS / DIVERGE / UNKNOWN"}
+```
+
+- **Teacher forcing**: both sides prefill the same tokens in one pass instead of generating, so one different greedy pick cannot shift everything after it. Positions align exactly.
+- **On-device sketches**: inside the hook, each block output is projected to 64 dims by a fixed ±1 random matrix. The projection is linear, $P(a)-P(b)=P(a-b)$, so sketches stored on two machines are enough to estimate per-layer relative error without moving GB-sized activations. The matrix comes from SHAKE-256 and is identical on every machine.
+- **Tolerance baseline**: the error of a known-good same-precision implementation against the reference is that precision's normal error. A candidate layer above 3× of it marks the divergence onset.
+- **Auditable without a GPU**: the verdict depends only on the fingerprint files, which anyone can re-check on a CPU.
+
+## Evidence
+
+### 1. One wrong kernel vs. precision noise (CPU, SmolLM2-135M)
+
+| Candidate | Top-1 agreement with fp32 | UniVis layer verdict |
 |---|---|---|
-| Baseline (all layers) | 13.81 | — |
-| Skip middle redundant layers | 105.67 | **+665%** |
+| bf16, correct stack | 96.2% | — (used as the tolerance baseline) |
+| bf16, block 17 activation swapped (SiLU → tanh-GELU) | **96.2%** | **DIVERGE @ block 17** (3.3× the baseline error) |
 
-Conclusion: saturated cosine similarity ≠ useless layer; "apparently redundant" layers in residual architectures still perform necessary refinement (full record in commit `1938d60` and `examples/pilot_perplexity.py`). Pilot has therefore pivoted to **confidence-based early-exit**: terminate generation when prediction entropy stays below a threshold.
+Reproduce with `univis diff demo` or [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py). The fault is injected, so this shows the mechanism works; detection on real porting issues has to be shown on C500 (stage C below).
 
-**First early-exit tradeoff data (measured on C500, Qwen2.5-0.5B/3B):** naive per-token entropy thresholds are unusable — formatting tokens in chat answers form ultra-low-entropy patches scattered throughout, so any threshold truncates early. A **window criterion** (`entropy_window`: require N consecutive low-entropy steps) restores a monotonic, controllable curve: a conservative setting saves ~9% of tokens while keeping 93% of content; an aggressive one saves 66% while keeping 42% (8 prompts × 128 tokens, greedy). Curve family and raw data: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md).
+### 2. Layer-level agreement between MetaX C500 and NVIDIA L20
 
-<div align="center">
+Same model, prompts, and decoding protocol (greedy / bf16) on a MetaX C500 (16GB sGPU slice) and an NVIDIA L20; per-layer statistics collected on both sides and compared as profiles:
 
-<img src="https://cookiesheep.github.io/univis/assets/img/early_exit_tradeoff.png" alt="entropy_window early-exit tradeoff" width="86%">
-
-<sub>Token-saved vs content-kept tradeoff under the `entropy_window` criterion (measured on C500): wider windows (w=8) keep more content at the same saving — monotonic and controllable, no cliff.</sub>
-
-</div>
-
-### 3. Cross-hardware evidence: redundancy profiles agree between MetaX C500 and NVIDIA L20
-
-Same model, same prompt, same decoding protocol (greedy / bf16 / 50 tokens) on both MetaX Xiyun C500 and NVIDIA L20; per-layer redundancy profiles correlate at:
-
-| Model | Architecture | r (cosine profile) | r (relative-delta profile) |
+| Model | Arch | r (cosine profile) | r (Relative Delta profile) |
 |---|---|---|---|
-| Qwen2.5-0.5B | Qwen2 | 0.9998 → 1.0000 | 1.0000 |
+| Qwen2.5-0.5B | Qwen2 | 1.0000 | 1.0000 |
 | Qwen2.5-3B | Qwen2 | 1.0000 | 1.0000 |
 | Qwen2.5-7B | Qwen2 | 1.0000 | 1.0000 |
 | TinyLlama-1.1B | Llama | 0.9968 | 0.9998 |
 
-(right of the arrow: retest over 10 diverse prompts; TinyLlama is the cross-architecture portability check)
+(10 mixed Chinese/English prompts covering translation, code, math, and common sense.)
 
 <div align="center">
+<table><tr>
+<td width="33%"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_0.5B.png" alt="0.5B"></td>
+<td width="33%"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_3B.png" alt="3B"></td>
+<td width="33%"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_7B.png" alt="7B"></td>
+</tr></table>
+<sub>MetaX C500 (magenta) and NVIDIA L20 (cyan) per-layer profiles nearly coincide.</sub>
+</div>
+
+On these models the MXMACA stack agrees with the NVIDIA stack at the level of per-layer statistics. Layer-averaged statistics are coarse; per-position `univis diff` on C500 is stage C. Methodology, raw data, and environment fingerprints: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md).
+
+The same C500 session also drove a fix in UniVis itself: hook overhead fell from +400–486% (per-layer device syncs amplified) to about +55% (one batched transfer per step), with bit-identical metrics.
+
+## Domestic compute and MXMACA
+
+| Environment | Stack | Status |
+|---|---|---|
+| MetaX C500 (16GB sGPU slice) | torch 2.8.0+metax3.3.0.2, MACA 3.3.0.15, transformers 4.57.3 | ✅ collection path and cross-hardware comparison ([evidence](docs/mxmaca/phase-a/README.md)) |
+| NVIDIA L20 (48GB) | torch 2.10.0+cu128, transformers 4.57.6 | ✅ incl. a 27B-class one-sided baseline |
+| CPU | torch 2.x | ✅ all 91 tests, `univis diff demo`, offline reports |
+
+| Stage | Goal | Status |
+|---|---|---|
+| A | C500 collection path, with environment fingerprint | ✅ 2026-08-19 |
+| B | Cross-scale layer agreement, C500 vs NVIDIA | ✅ 2026-08-19 |
+| C | `univis diff` on C500: publish NVIDIA reference fingerprints for Qwen2.5 0.5B / 3B / 7B so a single C500 is enough to check | planned |
+| C+ | Per-layer latency: find layers that are slow on C500 → swap in FlagGems / mcTriton kernels → verify accuracy with diff | planned |
+
+## Support contract and scope
+
+| Item | v0.7 contract |
+|---|---|
+| Models | HuggingFace `AutoModelForCausalLM` with auto-detected decoder blocks (GPT-2, LLaMA, Qwen, Mistral families); `demo` needs a LLaMA layout (`model.layers[i].mlp.act_fn`) |
+| Inputs | 8 built-in Chinese/English, code, and math prompts, teacher-forced; `--tokens-from` reuses another side's token ids |
+| Verdict | With a baseline: DIVERGE when a layer exceeds 3× the baseline error, else PASS. Without: only jumps (3×) after the first block are detected, and PASS is never given |
+| Estimate accuracy | 64-dim sketches estimated per-layer relative error within about 25% of the exact value in the CPU demo, enough for a 3× threshold; raise `--dim` for tighter estimates |
+| Out of scope | Training and backward passes; task-level accuracy (use lm-eval, OpenCompass); "porting certified" claims; per-layer checks inside inference engines such as vLLM |
+
+**PASS only means per-layer error stays within tolerance for the recorded model, prompt set, and stack. It does not extend to other models, sequence lengths, or shapes.**
+
+## Redundancy profiling and live dashboard (existing features)
+
+`univis.attach(model)` uses forward hooks to collect per-layer Relative Delta, input/output cosine similarity, and prediction entropy, and renders a live dashboard (React + ECharts) or a self-contained HTML report showing which layers change the representation least.
 
 <table>
 <tr>
-<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_0.5B.png" alt="Qwen2.5-0.5B C500 vs L20"></td>
-<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_3B.png" alt="Qwen2.5-3B C500 vs L20"></td>
-<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_7B.png" alt="Qwen2.5-7B C500 vs L20"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-mri.png" alt="model MRI"><br><sub>Model MRI: one ring per layer, orange = large change, grey-green = small</sub></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="dashboard"><br><sub>Live per-layer heatmap of Qwen2.5-7B on MetaX C500</sub></td>
 </tr>
 </table>
-
-<sub>Per-layer cosine profiles at three scales: MetaX C500 (magenta) vs NVIDIA L20 (cyan) overlap layer by layer (r = 1.0000) — "which layers are redundant" transfers across hardware.</sub>
-
-</div>
-
-Within this tested scope, "which layers are redundant" transfers across hardware — no re-derivation per GPU needed. Methodology and full data: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md). The same C500 session also drove a fix to UniVis itself: hook overhead went from +400~486% on many-layer models (per-layer device syncs amplified) down to ~+55% (one batched transfer per step) with bit-identical metric values — measure first, then optimize.
-
-*Environments: NVIDIA L20 (48GB) and MetaX Xiyun C500 (16GB sGPU slice); the 27B-class model is verified on L20 only.*
-
-## Quick start
-
-```bash
-pip install univis
-```
-
-**A · Offline report (minimal)**
 
 ```python
 import univis
 
-tracker = univis.attach(model, transport="file")
-for token_id in generate_loop():
-    tracker.on_step(token_id)
-report_path = tracker.finish()   # → standalone HTML report
-```
-
-**B · `model.generate()` integration**
-
-```python
-tracker = univis.attach(model)
+tracker = univis.attach(model)                       # blocks auto-detected
 lp = tracker.logits_processor(tokenizer)
-output = model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
-tracker.finish()
+model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
+report_path = tracker.finish()                       # self-contained HTML
 ```
 
-**C · Real-time dashboard**
+CLI: `univis report` (JSONL → HTML), `univis compare` (multi-model), `univis serve` (live server; the dashboard runs from a clone with `npm run dev`).
 
-```bash
-python -m univis serve              # terminal 1: WebSocket server (:8765)
-cd dashboard && npm run dev         # terminal 2: dashboard (:5173)
-python your_script.py               # terminal 3: inference with transport="websocket"
-```
+<div align="center">
+<img src="https://cookiesheep.github.io/univis/assets/img/cross-scale.png" alt="cross-scale" width="86%">
+<br><sub>Qwen2.5-0.5B / 3B / 7B and Qwen3.6-27B (~54× parameter span): middle layers have the highest input/output cosine similarity, consistent with ShortGPT and related work.</sub>
+</div>
 
-Three CLI entry points: `univis serve` (live server), `univis report` (JSONL → HTML), `univis compare` (multi-model comparison).
+## Lab notes (including negative results)
 
-**Development install** (contributors):
+- **Skipping "redundant" layers does not work.** Skipping Qwen2.5-7B's middle layers because their cosine similarity is high raised perplexity from 13.81 to 105.67 (+665%). A saturated cosine does not mean a layer is useless (`examples/pilot_perplexity.py`).
+- **Entropy-based early stopping truncates the answer.** Pilot forces end-of-sequence after N consecutive low-entropy steps. The saved tokens come from truncation, and "kept ratio" is the share of the original answer kept as a prefix, not a quality score. A per-token rule truncates at the very beginning; a consecutive-window rule gives a monotonic savings/kept curve (C500 data in [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md)). We do not recommend it as an inference speedup.
 
-```bash
-git clone https://github.com/cookiesheep/univis && cd univis
-pip install -e ".[dev]"
-```
+## Checkable facts
+
+- Measured on two GPUs: MetaX C500 (MXMACA) and NVIDIA L20. Qwen2.5 0.5B / 3B / 7B and TinyLlama-1.1B were compared on both; Qwen3.6-27B on L20 only.
+- The [gallery](https://cookiesheep.github.io/univis/) has 7 real-hardware reports (4 on C500, 3 on L20) and 1 CPU diff report, viewable in a browser without a GPU.
+- C500 environment fingerprints (MXMACA versions, mx-smi output), raw JSONL, and reproduction scripts are in the repo: [docs/mxmaca/](docs/mxmaca/phase-a/README.md).
+- Both negative results are published in full (previous section).
+- 91 unit tests run on GitHub Actions with Python 3.10 / 3.12.
 
 ## Architecture
 
 ```
-your model
-    │  univis.attach(model)
-    ▼
-┌──────────────────────── univis SDK ───────────────────────┐
-│  detection → probe (forward_hook) → metrics → transport    │
-│   (auto-detect)  (per-layer)      (scalar)   (JSONL/HTTP)  │
-│                                                            │
-│   metrics computed at the edge ── only KB of JSON emitted  │
-└───────────────────────────┬────────────────────────────────┘
-                            │ HTTP POST → WebSocket
-                            ▼
-                  React + ECharts dashboard
-                  (live heatmap · stats · filters)
-                            │
-                            ▼  tracker.finish()
-                  standalone HTML report
+your model ── univis.attach(model) ──▶ probe (forward hooks) ──▶ metrics ──▶ JSONL / WebSocket ──▶ Dashboard · HTML report
+          └── univis diff record ──▶ teacher-forced pass ──▶ on-device sketches ──▶ fingerprint.json
+                                                               univis diff compare ──▶ PASS / DIVERGE / UNKNOWN + HTML
 ```
 
-Three layers: the collection SDK (detection / probe / metrics / transport / tracker / pilot), a FastAPI WebSocket server, and the React frontend. The core design is **edge computing**: high-dimensional activations are reduced to scalars right inside the hook, so monitoring never blocks inference. Full module design and APIs: [ARCHITECTURE.md](ARCHITECTURE.md); scope and motivation: [PRD.md](PRD.md).
-
-## Engineering quality
-
-- **83 unit tests** (8 test files) covering the SDK, server, report generation, the three-terminal pipeline, and Pilot — `pytest tests/` fully green;
-- **GitHub Actions CI**: every push runs the full suite on Python 3.10 / 3.12 with CPU torch;
-- **Published on PyPI**: `pip install univis`; full type hints on Python ≥ 3.10; 10 SDK modules; public API exported from `__init__.py`.
-
 ```
-src/univis/      Python SDK — attach() → on_step() → finish()
+src/univis/      Python SDK: detection · probe · metrics · transport · tracker · report · diff · pilot
 dashboard/       React 18 + TypeScript + ECharts frontend
-docs/images/     sample reports and charts
-examples/        runnable examples
-tests/           83 unit tests
+docs/mxmaca/     C500 evidence: environment fingerprints, raw data, comparison scripts
+examples/        runnable examples (incl. diff_fault_demo.py)
+tests/           91 unit tests
 ```
+
+Module design: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Roadmap
 
-- **Near term** — Pilot early-exit: first tradeoff data landed (C500, window criterion); extend to more prompt sets and 27B-class; further reduce the remaining ~55% C500 collection overhead; 27B-class on a full C500.
-- **Mid term** — deeper MXMACA validation (phase C, integrating with the FlagGems / mcTriton ecosystem); DiT / video-generation models (temporal redundancy across denoising steps); hooks drilled down to Attention / FFN sub-layers.
-- **Long term** — 70B+ and MoE models; integration with mainstream inference frameworks.
+- **Near term**: `univis diff` reference fingerprints on C500 (stage C); per-layer latency and the FlagGems kernel-swap loop (stage C+); divergence localization at sub-layer (attention / MLP) granularity.
+- **Mid term**: before/after-quantization comparison (W8A8 / W4A16) that suggests which layers to keep in higher precision; 27B-class validation on a full C500.
+- **Long term**: more domestic compute stacks; numeric regression checks wired into inference frameworks.
 
-## Community & collaboration
+## Contributing
 
-UniVis is used for day-to-day diagnostics and teaching demos in our lab. A GitLink mirror is in preparation. Contributions are welcome — new metric plugins, model adapters, dashboard views, and benchmarks are all useful. See [CONTRIBUTING.md](CONTRIBUTING.md); the metric functions in `metrics.py` are pure and independently testable, which makes adding a new metric low-risk.
+Issues and PRs are welcome: new model layouts, reference fingerprints recorded on your hardware, and report views are all valuable. See [CONTRIBUTING.md](CONTRIBUTING.md). If your model's output on a domestic GPU differs from NVIDIA, open an issue and we can localize it together with `univis diff`.
 
 ## License
 
@@ -284,4 +244,4 @@ UniVis is used for day-to-day diagnostics and teaching demos in our lab. A GitLi
 
 ## Acknowledgements
 
-Computing resources and technical discussions from the AI Systems research group at Sun Yat-sen University. Built on PyTorch, FastAPI, React, and ECharts.
+Thanks to the AI Systems group at Sun Yat-sen University for compute resources and technical discussions. Built on PyTorch, HuggingFace Transformers, FastAPI, React, and ECharts.

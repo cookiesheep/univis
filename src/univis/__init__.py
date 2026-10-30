@@ -18,6 +18,8 @@ import torch.nn as nn
 from .tracker import Tracker, create_tracker
 from .pilot import Pilot, PilotPolicy
 
+__version__ = '0.7.0'
+
 
 def attach(
     model: nn.Module,
@@ -54,4 +56,4 @@ def attach(
     )
 
 
-__all__ = ['attach', 'Tracker', 'Pilot', 'PilotPolicy']
+__all__ = ['attach', 'Tracker', 'Pilot', 'PilotPolicy', '__version__']

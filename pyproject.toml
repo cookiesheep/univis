@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "univis"
-version = "0.6.2"
-description = "Transformer inference redundancy diagnostic and visualization toolkit"
+version = "0.7.0"
+description = "Layer-wise A/B for LLMs: find the first layer where two runs diverge (MetaX C500 / NVIDIA / CPU), plus redundancy profiling"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -50,6 +50,9 @@ dev = [
     "transformers",
     "starlette",
     "websockets",
+]
+hf = [
+    "transformers",
 ]
 server = [
     "fastapi>=0.100",

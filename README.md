@@ -1,282 +1,242 @@
 <div align="center">
 
-# UniVis
+<img src="https://cookiesheep.github.io/univis/assets/img/hero.png" alt="UniVis — 国产 GPU 上的大模型，逐层对照" width="100%">
 
-**找出大模型推理时哪些层在空转浪费算力 —— Transformer 推理冗余诊断与可视化工具**
+**模型搬到国产 GPU 上以后，算得对不对？如果不对，从哪一层开始不对？**
 
-*Find out which layers of your LLM actually compute at inference — and which are idle.*
-
-`AI Infra · 大模型推理优化与部署`
-
-**[🎨 在线画廊](https://cookiesheep.github.io/univis/)——真机报告可在线复核（无需 GPU）· 跨硬件实证 · 交互演示**
+*Find the first layer where two runs of the same model diverge — MetaX C500 · NVIDIA · CPU*
 
 [![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
-[![PyPI Downloads](https://img.shields.io/pypi/dm/univis.svg)](https://pypistats.org/packages/univis)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-83-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-91-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
+[![MetaX C500](https://img.shields.io/badge/MetaX_C500-tested-c2410c.svg)](docs/mxmaca/phase-b/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[English](README.en.md) · 简体中文
+[在线画廊](https://cookiesheep.github.io/univis/) · [30 秒上手](#30-秒上手cpu无需-gpu) · [实测证据](#实测证据) · [支持契约](#精确支持契约与范围声明) · [English](README.en.md)
 
 </div>
 
-<img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="UniVis Dashboard" width="100%">
+## 为什么需要它
 
-UniVis 通过 `forward` hook 零侵入地附着在任意 PyTorch / HuggingFace Transformer 上，在**端侧（hook 内部）**把每层激活降维为标量指标（单步仅约 1–2 KB），经 JSONL / WebSocket 输出实时 Dashboard 或自包含离线 HTML 报告，回答一个问题：**推理时，哪些层在真正计算，哪些层在冗余。**
+同一个模型换一块卡、换一版软件栈、换一个算子库，或者做了量化，输出总会有一点不同。bf16 本来就有误差，真正难的是判断：**这点不同是正常的精度误差，还是某一层的算子出了问题？**
 
-UniVis 是**度量与可视化**工具——不修改、不剪枝、不加速你的模型，而是给出判断「该优化什么」的证据，并提供一条可实验的干预路径（Pilot）。
+只看最终输出分不出来。在下面的实验里，「数值栈完全正确」和「第 17 层有一个写错的算子」两种情况，与参考答案的 top-1 一致率**都是 96.2%**。
 
----
+UniVis 把比较深入到每一层：两边喂同一段 token，在每一层出口记下一份很小的数值指纹，然后逐层对照，给出三种结论之一。
 
-## ✨ 效果展示
-
-<table>
-<tr>
-<td width="50%" align="center"><b>实时 Dashboard</b></td>
-<td width="50%" align="center"><b>模型 MRI · 同心环</b></td>
-</tr>
-<tr>
-<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="dashboard"></td>
-<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-mri.png" alt="model MRI"></td>
-</tr>
-<tr>
-<td width="50%" align="center"><sub>Qwen2.5-7B 实时推理于沐曦曦云 C500：热力图随 token 生成从左到右动态生长（plasma：暗=冗余，亮=活跃）</sub></td>
-<td width="50%" align="center"><sub>每一层画成同心环，橙色=活跃、灰绿色=冗余，一眼定位「摸鱼层」</sub></td>
-</tr>
-<tr>
-<td width="50%" align="center"><b>层级脉冲 + 数据河流</b></td>
-<td width="50%" align="center"><b>多模型对比报告</b></td>
-</tr>
-<tr>
-<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-pulse.png" alt="layer pulse"></td>
-<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-comparison.png" alt="comparison"></td>
-</tr>
-<tr>
-<td width="50%" align="center"><sub>每层一个迷你波形：平线=冗余、尖峰=活跃；ThemeRiver 展示活跃度随 token 流动</sub></td>
-<td width="50%" align="center"><sub><code>univis compare</code> 横向比较多个模型的冗余分布</sub></td>
-</tr>
-</table>
-
-## 为什么需要 UniVis
-
-Transformer 推理成本与显存随参数量暴涨，但并非每一层、每个生成步骤贡献相同——省算力就是省钱，这在国产算力资源紧张的当下尤其重要。要优化，先要知道冗余在哪里。现有工具却都看向别处：
-
-| 工具 | 观测期 | 粒度 | 侵入性 | 上手门槛 |
-|---|---|---|---|---|
-| TensorBoard / W&B | 训练期 | loss 等宏观标量 | 需埋点 | 低 |
-| BertViz | 推理期 | 注意力语义 | 需写分析脚本 | 中 |
-| Nsight 等 profiler | 推理期 | GPU 算子 / 内核 | 环境级插桩 | 高 |
-| **UniVis** | **推理期** | **逐层 × 逐 token 冗余指标** | **零侵入 hook** | **低** |
-
-UniVis 填补的是中间缺失的语义层：**推理期逐层、逐 token 的冗余度量**，每步只传输几 KB。
-
-## 国产算力与 MXMACA 适配
-
-UniVis 的实现天然面向跨硬件移植，以下事实逐条可查证：
-
-- **纯 PyTorch `forward` hook 实现**，无任何 CUDA 专有 API 依赖；
-- 指标在**端侧**（hook 内部）计算，单步负载仅 1–2 KB，不增加推理瓶颈；
-- 离线路径（JSONL → HTML 报告）**纯 CPU 可运行**；
-- 不依赖特定 GPU 厂商的 profiler 工具链。
-
-### 环境矩阵
-
-| 环境 | 硬件 | 状态 | 已验证内容 |
-|---|---|---|---|
-| NVIDIA L20（48GB） | NVIDIA GPU | ✅ **已验证** | Qwen2.5-0.5B / 3B / 7B + 27B 级 hybrid 完整诊断（跨约 54× 参数跨度） |
-| CPU（无 GPU） | — | ✅ **已验证** | 全量 83 项单元测试、离线报告渲染 |
-| MetaX 曦云 C500（sGPU 切分实例） | 沐曦 GPU + MXMACA 软件栈 | ✅ **阶段 A + B 已验证** | Qwen2.5-0.5B / 3B / 7B 跨硬件对照（与 NVIDIA L20 画像一致性 r ≥ 0.9998），[证据存档](docs/mxmaca/phase-b/README.md) |
-
-### 阶段化路线图
-
-| 阶段 | 目标 | 完成判据 | 状态 |
-|---|---|---|---|
-| A | 曦云 C500 指标采集通路验证 | Qwen2.5-0.5B 完整生成一次，产出 HTML 报告 + JSONL 留档 + 环境指纹（MXMACA / mcPyTorch 精确版本 + `mx-smi` 输出） | ✅ **已完成（2026-08-19）**，[证据](docs/mxmaca/phase-a/README.md) |
-| B | C500 跨规模冗余基线 | 0.5B / 3B / 7B 基线报告 + 与 NVIDIA L20 同模型同提示词的对比表 | ✅ **已完成（2026-08-19）**：三规模画像一致性 r ≥ 0.9998，[证据](docs/mxmaca/phase-b/README.md)（27B 需整机 C500，属后续） |
-| C | 诊断结果反哺沐曦生态 | 以冗余定位结论作为 FlagGems / mcTriton 算子优化的输入示例 | 规划中 |
-
-### 精确支持契约与范围声明
-
-| 项 | 当前契约 |
+| 结论 | 含义 |
 |---|---|
-| 已实测模型 | Qwen2.5-0.5B / 3B / 7B-Instruct（bf16）、Qwen3.6-27B（hybrid） |
-| 自动识别架构 | GPT-2 系；LLaMA 系（LLaMA 1/2/3、Mistral、Mixtral）；Qwen 系（1.5 / 2 / 2.5 / 3）；BERT 系（BERT、RoBERTa、ALBERT、DeBERTa） |
-| 软件栈 | NVIDIA 栈：Python ≥ 3.10、PyTorch ≥ 2.0、HF transformers（L20 实测）；沐曦栈：torch 2.8.0+metax3.3.0.2、MACA 3.3.0.15、transformers 4.57.3（C500 阶段 A 实测） |
-| 硬件 | NVIDIA GPU（CUDA）与 CPU 已验证；沐曦 MXMACA 适配按阶段推进（见上） |
+| **PASS** | 每一层的误差都在「已知正常的同精度实现」的 3 倍以内 |
+| **DIVERGE** | 指出误差**第一次**超出容差的那一层，下一步就去查这一层用到的算子 |
+| **UNKNOWN** | 没有提供容差基线，只能排除层间突变，不下「正常」的结论 |
 
-**范围声明：**以上验证仅限所列模型与架构，冗余结论不外推到未测模型——这恰恰是 UniVis 的价值：在新模型上跑一次诊断，得到它自己的冗余画像，再谈优化。
+## 30 秒上手（CPU，无需 GPU）
 
-### 无卡可审计
+```bash
+pip install "univis[hf]"
+univis diff demo
+```
 
-UniVis 的全部诊断产出——JSONL 原始数据、自包含 HTML 报告、环境指纹——都可在**无 GPU 环境**直接打开复核。诊断工具本身就是证据链：C500 阶段 A 的完整证据（数据、报告、指纹）已发布于 [docs/mxmaca/phase-a/](docs/mxmaca/phase-a/README.md)，任何人无需租卡即可审计。
+```
+[1/3] fp32 reference: HuggingFaceTB/SmolLM2-135M on CPU
+[2/3] bf16, correct (the tolerance baseline)
+[3/3] bf16 with a wrong activation kernel in block 17
 
-我们期待与沐曦及 MXMACA 社区在测试资源、技术指导与生态联动上展开合作。适配详情与环境指纹规范见 [docs/mxmaca-adaptation.md](docs/mxmaca-adaptation.md)。
+  correct bf16 : top-1 96.2%  (used as the tolerance baseline)
+  broken  bf16 : top-1 96.2%  DIVERGE: error first exceeds the baseline error by 3.3x at block 17 (relative error 4.85e-02).
 
-## 核心功能
+Same output-level agreement, but the layer view pinpoints the block.
+Report: univis_diff_demo.html
+```
 
-- **低侵入 SDK** —— `univis.attach(model)` 一行挂载；detection 按模型 config 自动识别架构，probe 以 `forward` hook 逐层采集，无需改动目标模型。5 项核心指标：Relative Delta、层间余弦相似度、激活稀疏度、预测熵、显存变化。
-- **实时 Dashboard** —— React 18 + TypeScript + ECharts，热力图随 token 生成从左到右生长，支持统计面板、过滤与点击交互。
-- **离线 HTML 报告** —— 单文件、零依赖、可直接打开：模型 MRI 同心环、层级脉冲、ThemeRiver 数据河流、带趋势标注的冗余排名。
-- **多模型对比 CLI** —— `univis compare` 横向比较多个模型的冗余分布，含雷达图与对比表。
-- **Pilot 干预（实验性）** —— 把度量变成行动：基于预测熵的生成提前终止（early-exit）；layer-skip 路线的负结果已完整公开（见下节）。
-- **工程质量** —— 83 项单元测试全绿、GitHub Actions CI、3 个 CLI 入口、Python 3.10+ 全类型注解。
-
-## 实验发现
-
-### 1. 中间层冗余最显著，且跨规模稳定成立
+首次运行会下载 SmolLM2-135M（约 270 MB）；模型缓存好以后，在一台普通 Windows 电脑的 CPU 上约 40 秒跑完。它把同一个模型跑三遍：fp32 参考、正确的 bf16、第 17 层激活函数被换错的 bf16，然后生成一份自包含 HTML 报告（[在线打开](https://cookiesheep.github.io/univis/assets/reports/diff_cpu_demo.html)）：
 
 <div align="center">
-
-<img src="https://cookiesheep.github.io/univis/assets/img/cross-scale.png" alt="cross-scale redundancy" width="92%">
-
-<sub>Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B（hybrid），参数跨度约 54 倍。层深度归一化到 [0,1] 后，四个模型的中间段余弦相似度都明显高于浅层与深层。</sub>
-
+<img src="https://cookiesheep.github.io/univis/assets/img/diff-report.png" alt="univis diff report" width="88%">
 </div>
 
-### 2. 一次公开的失败：layer-skip 不成立
+## 用在你自己的模型上
 
-Pilot v1 曾按「高余弦相似度 = 可跳过」的直觉跳过中间冗余层，实测（Qwen2.5-7B，NVIDIA L20）：
+```bash
+# 1. 参考端：fp32（CPU 即可）
+univis diff record Qwen/Qwen2.5-0.5B-Instruct --dtype fp32 --device cpu -o ref.json
 
-| 配置 | perplexity | 变化 |
+# 2. 容差基线：一个已知正常的 bf16 实现，例如 NVIDIA GPU
+univis diff record Qwen/Qwen2.5-0.5B-Instruct --dtype bf16 --tokens-from ref.json \
+    -o nvidia.json --label "NVIDIA bf16"
+
+# 3. 待检端：例如沐曦曦云 C500
+univis diff record Qwen/Qwen2.5-0.5B-Instruct --dtype bf16 --tokens-from ref.json \
+    -o c500.json --label "MetaX C500 bf16"
+
+# 4. 逐层对照，出报告
+univis diff compare ref.json c500.json --baseline nvidia.json -o report.html
+```
+
+- 三份指纹可以在三台不同的机器上录，拷到一起再比。每份是几 MB 的 JSON，没有 GPU 也能打开、比对和审计。
+- `--tokens-from` 保证各端喂的是完全相同的 token id。
+- 退出码 `0` PASS、`1` DIVERGE、`3` UNKNOWN，可以直接放进 CI，作为软件栈升级或算子替换的回归检查。
+
+Python API：
+
+```python
+from univis import diff
+
+ref = diff.record(model_fp32, tokenizer, label='fp32 reference')
+cand = diff.record(model_on_c500, token_ids=ref['token_ids'], label='C500')
+result = diff.compare(ref, cand, baseline=known_good)
+print(result['verdict'], result['summary'])
+diff.render_html(result, 'report.html')
+```
+
+## 它是怎么做的
+
+```mermaid
+flowchart LR
+    A["同一段 token<br/>teacher forcing"] --> B["每一层出口<br/>forward hook"]
+    B --> C["端侧随机投影<br/>hidden → 64 维"]
+    C --> D["指纹 JSON<br/>几 MB · 可拷贝"]
+    D --> E["逐层相对误差<br/>对照容差基线"]
+    E --> F{"PASS / DIVERGE / UNKNOWN"}
+```
+
+- **teacher forcing**：两端喂同一段 token、一次 prefill 跑完，不让模型自己生成。避免了某一步贪心选词不同、后面整段错位的问题，逐位置对齐是严格的。
+- **端侧草图**：在 hook 内部用一个固定的 ±1 随机矩阵把每层输出投影到 64 维。投影是线性的，$P(a)-P(b)=P(a-b)$，所以两台机器各存草图就能估计逐层相对误差，不需要搬运 GB 级的中间张量。投影矩阵由 SHAKE-256 生成，在任何机器上都完全相同。
+- **容差基线**：同精度下「已知正常」的实现与参考之间的误差，就是该精度的正常误差。待检端某一层超过它的 3 倍，就判定从这一层开始分叉。
+- **无卡可审计**：判定只依赖指纹文件，任何人都可以在 CPU 上复核。
+
+## 实测证据
+
+### 1. 单个错误算子 vs 正常精度误差（CPU，SmolLM2-135M）
+
+| 待检端 | 与 fp32 参考的 top-1 一致率 | UniVis 逐层判定 |
 |---|---|---|
-| 基线（全部层） | 13.81 | — |
-| 跳过中间冗余层 | 105.67 | **+665%** |
+| bf16，数值栈正确 | 96.2% | —（作为容差基线） |
+| bf16，第 17 层激活函数换错（SiLU → tanh-GELU） | **96.2%** | **DIVERGE @ block 17**（误差为基线的 3.3 倍） |
 
-结论：残差架构里余弦相似度饱和 ≠ 该层无用，「看似冗余」的层仍承担必要的细化计算（完整记录见 commit `1938d60` 与 `examples/pilot_perplexity.py`）。据此 Pilot 转向**基于置信度的 early-exit**：当预测熵持续低于阈值时提前结束生成。
+复现：`univis diff demo`，或 [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py)。错误是人为注入的，只能说明机制成立；在真实适配问题上的检出能力，要靠 C500 实测来证明（见下方路线图阶段 C）。
 
-**early-exit 首批权衡数据（C500 实测，Qwen2.5-0.5B/3B）**：朴素逐 token 熵阈值不可用——聊天模型的格式化 token 形成散布全答案的超低熵簇，任何阈值都会过早截断；引入**连续窗口判据**（`entropy_window`，连续 N 步低熵才退出）后得到单调可控的权衡曲线：保守档省 ~9% token 保留 93% 内容，激进档省 66% 保留 42%（8 提示词 × 128 token，greedy）。曲线族与原始数据见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md#附带发现-2窗口化-early-exit-首批权衡数据)。
+### 2. 沐曦曦云 C500 与 NVIDIA L20 的层级一致性
 
-<div align="center">
-
-<img src="https://cookiesheep.github.io/univis/assets/img/early_exit_tradeoff.png" alt="entropy_window early-exit tradeoff" width="86%">
-
-<sub>`entropy_window` 连续窗口判据的「token 节省—内容保留」权衡曲线（C500 实测）：窗口越宽（w=8），同等节省下保留越高，权衡单调可控、无悬崖。</sub>
-
-</div>
-
-### 3. 跨硬件实证：冗余画像在沐曦 C500 与 NVIDIA L20 上一致
-
-同一模型、同一提示词、同一解码协议（greedy / bf16 / 50 token），分别在 MetaX 曦云 C500 与 NVIDIA L20 上诊断，逐层冗余画像的皮尔逊相关系数：
+同一模型、同一提示词、同一解码协议（greedy / bf16），在 MetaX 曦云 C500（16GB sGPU 切分）与 NVIDIA L20 上分别采集逐层统计量，比较两侧的层级画像：
 
 | 模型 | 架构 | r（余弦画像） | r（Relative Delta 画像） |
 |---|---|---|---|
-| Qwen2.5-0.5B | Qwen2 | 0.9998 → 1.0000 | 1.0000 |
+| Qwen2.5-0.5B | Qwen2 | 1.0000 | 1.0000 |
 | Qwen2.5-3B | Qwen2 | 1.0000 | 1.0000 |
 | Qwen2.5-7B | Qwen2 | 1.0000 | 1.0000 |
 | TinyLlama-1.1B | Llama | 0.9968 | 0.9998 |
 
-（箭头右侧为 10 条多样化提示词复测值；TinyLlama 为跨架构可移植性检验。）
+（10 条中英混合提示词，含翻译、代码、数学、常识。）
 
 <div align="center">
+<table><tr>
+<td width="33%"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_0.5B.png" alt="0.5B"></td>
+<td width="33%"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_3B.png" alt="3B"></td>
+<td width="33%"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_7B.png" alt="7B"></td>
+</tr></table>
+<sub>沐曦 C500（品红）与 NVIDIA L20（青）的逐层画像几乎重合。</sub>
+</div>
+
+这说明在这些模型上，MXMACA 栈的逐层计算与 NVIDIA 栈在统计意义上一致。层平均统计量的粒度较粗，逐位置的 `univis diff` 对照是阶段 C 的内容。方法学、原始数据和环境指纹见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md)。
+
+同一轮 C500 实测还推动了工具自身的一次修复：hook 采集开销从旧实现的 +400~486%（逐层设备同步被放大）降到 +55% 量级（每步一次批量回传），指标逐位不变。
+
+## 国产算力与 MXMACA
+
+| 环境 | 软件栈 | 状态 |
+|---|---|---|
+| MetaX 曦云 C500（16GB sGPU 切分） | torch 2.8.0+metax3.3.0.2、MACA 3.3.0.15、transformers 4.57.3 | ✅ 采集通路与跨硬件对照已验证（[证据](docs/mxmaca/phase-a/README.md)） |
+| NVIDIA L20（48GB） | torch 2.10.0+cu128、transformers 4.57.6 | ✅ 已验证，含 27B 级单侧基线 |
+| CPU | torch 2.x | ✅ 全部 91 项测试、`univis diff demo`、离线报告 |
+
+| 阶段 | 目标 | 状态 |
+|---|---|---|
+| A | C500 指标采集通路验证（含环境指纹） | ✅ 2026-08-19 |
+| B | C500 与 NVIDIA 跨规模层级一致性 | ✅ 2026-08-19 |
+| C | C500 上的 `univis diff`：为 Qwen2.5 0.5B / 3B / 7B 发布 NVIDIA 参考指纹，持有 C500 的人单卡即可比对 | 计划中 |
+| C+ | 逐层耗时对照：找出在 C500 上偏慢的层 → 换上 FlagGems / mcTriton 算子 → 用 diff 验证精度不变 | 计划中 |
+
+## 精确支持契约与范围声明
+
+| 项 | v0.7 契约 |
+|---|---|
+| 模型 | HuggingFace `AutoModelForCausalLM`，decoder block 自动识别（GPT-2、LLaMA、Qwen、Mistral 系）；`demo` 需要 LLaMA 结构（`model.layers[i].mlp.act_fn`） |
+| 输入 | 内置 8 条中英文、代码、数学提示词，teacher forcing；可用 `--tokens-from` 复用另一端的 token id |
+| 判定 | 有基线：某层误差超过基线误差 3 倍即 DIVERGE，否则 PASS；无基线：只检测第 1 个 block 之后的层间突变（3 倍），给不出 PASS |
+| 估计精度 | 64 维草图对单层相对误差的估计，在 CPU 演示中与精确值最多相差约 25%，对 3 倍阈值足够；需要更紧可加大 `--dim` |
+| 不做什么 | 训练与反向传播；任务级精度评测（请用 lm-eval、OpenCompass）；「适配合格」认证；vLLM 等推理引擎内部的逐层检查 |
+
+**PASS 只说明在所记录的模型、提示词集和软件栈上逐层误差处于容差内，不外推到其他模型、序列长度或 shape。**
+
+## 冗余画像与实时 Dashboard（原有功能，继续可用）
+
+`univis.attach(model)` 用 forward hook 逐层采集 Relative Delta、层间余弦相似度、预测熵等标量，输出实时 Dashboard（React + ECharts）或自包含 HTML 报告，回答「推理时哪些层的改动最小」。
 
 <table>
 <tr>
-<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_0.5B.png" alt="Qwen2.5-0.5B C500 vs L20"></td>
-<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_3B.png" alt="Qwen2.5-3B C500 vs L20"></td>
-<td width="33%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/cross_hw_7B.png" alt="Qwen2.5-7B C500 vs L20"></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/report-mri.png" alt="model MRI"><br><sub>模型 MRI：每层一圈，橙色改动大、灰绿色改动小</sub></td>
+<td width="50%" align="center"><img src="https://cookiesheep.github.io/univis/assets/img/dashboard-c500.png" alt="dashboard"><br><sub>Qwen2.5-7B 在曦云 C500 上实时推理的逐层热力图</sub></td>
 </tr>
 </table>
-
-<sub>三个规模的层级余弦相似度画像：沐曦 C500（品红）与 NVIDIA L20（青）逐层几乎重合（r = 1.0000）——「哪些层冗余」的结论跨硬件可迁移。</sub>
-
-</div>
-
-在该测试范围内，「哪些层冗余」的结论跨硬件可迁移——无需为每种 GPU 重新推导。方法学与全部数据见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md)。同轮 C500 实测还驱动了一次工具自身的重要修复：hook 采集开销从旧实现的多层数下 +400~486%（逐层设备同步被放大）优化到 +55% 量级（每步一次批量回传），指标数值逐位不变——「先测量，再优化」正是 UniVis 的用途示范。
-
-*以上实验环境：NVIDIA L20（48GB）与 MetaX 曦云 C500（16GB sGPU 切分）；27B 级模型为 L20 单侧验证。*
-
-## 快速开始
-
-```bash
-pip install univis
-```
-
-**A · 离线报告（最简）**
 
 ```python
 import univis
 
-tracker = univis.attach(model, transport="file")
-for token_id in generate_loop():
-    tracker.on_step(token_id)
-report_path = tracker.finish()   # → 自包含 HTML 报告
-```
-
-**B · `model.generate()` 集成**
-
-```python
-tracker = univis.attach(model)
+tracker = univis.attach(model)                       # 自动识别 block
 lp = tracker.logits_processor(tokenizer)
-output = model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
-tracker.finish()
+model.generate(input_ids, logits_processor=[lp], max_new_tokens=50)
+report_path = tracker.finish()                       # 自包含 HTML 报告
 ```
 
-**C · 实时 Dashboard**
+命令行：`univis report`（JSONL → HTML）、`univis compare`（多模型对比）、`univis serve`（实时服务，Dashboard 需克隆仓库后 `npm run dev`）。
 
-```bash
-python -m univis serve              # 终端 1：WebSocket 服务（:8765）
-cd dashboard && npm run dev         # 终端 2：Dashboard（:5173）
-python your_script.py               # 终端 3：transport="websocket" 运行推理
-```
+<div align="center">
+<img src="https://cookiesheep.github.io/univis/assets/img/cross-scale.png" alt="cross-scale" width="86%">
+<br><sub>Qwen2.5-0.5B / 3B / 7B 与 Qwen3.6-27B（约 54 倍参数跨度）：中段层的输入输出余弦相似度最高，与 ShortGPT 等工作的观察一致。</sub>
+</div>
 
-三个 CLI 入口：`univis serve`（实时服务）、`univis report`（JSONL → HTML）、`univis compare`（多模型对比）。
+## 实验记录（含负结果）
 
-**开发安装**（贡献者）：
+- **跳过「冗余层」不成立。**按「余弦相似度高就跳过」的直觉跳过 Qwen2.5-7B 的中段层，perplexity 从 13.81 升到 105.67（+665%）。余弦饱和不等于这一层没用，直接跳层不可取（`examples/pilot_perplexity.py`）。
+- **按熵提前结束生成，本质是截短回答。**Pilot 在预测熵连续 N 步低于阈值时强制输出结束符。节省的 token 来自截断；所谓「保留率」，指截断后的前缀与原回答一致的比例，并不是质量分。朴素的逐 token 判据会在答案开头就截断，连续窗口判据可以得到单调的「节省—保留」曲线（C500 实测数据见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md)）。我们不把它推荐为推理加速手段。
 
-```bash
-git clone https://github.com/cookiesheep/univis && cd univis
-pip install -e ".[dev]"
-```
+## 可复核的事实
+
+- 两种 GPU 真机实测：沐曦曦云 C500（MXMACA）与 NVIDIA L20。Qwen2.5 0.5B / 3B / 7B 和 TinyLlama-1.1B 做了两侧对照，Qwen3.6-27B 为 L20 单侧。
+- [在线画廊](https://cookiesheep.github.io/univis/)里有 7 份真机报告（C500 4 份、L20 3 份）和 1 份 CPU diff 报告，浏览器直接打开，不需要 GPU。
+- C500 环境指纹（MXMACA 版本、mx-smi 输出）、原始 JSONL 和复现脚本全部入库：[docs/mxmaca/](docs/mxmaca/phase-a/README.md)。
+- 两例负结果完整公开（见上一节）。
+- 91 项单元测试，GitHub Actions 在 Python 3.10 / 3.12 上全量运行。
 
 ## 架构
 
 ```
-你的模型
-    │  univis.attach(model)
-    ▼
-┌──────────────────────── univis SDK ───────────────────────┐
-│  detection → probe (forward_hook) → metrics → transport    │
-│           (自动识别)   (逐层)        (标量)    (JSONL/HTTP)  │
-│                                                            │
-│   指标在端侧算好 ── 只输出 KB 级 JSON                       │
-└───────────────────────────┬────────────────────────────────┘
-                            │ HTTP POST → WebSocket
-                            ▼
-                  React + ECharts Dashboard
-                  （实时热力图 · 统计 · 过滤）
-                            │
-                            ▼  tracker.finish()
-                  可独立打开的 HTML 报告
+your model ── univis.attach(model) ──▶ probe (forward hooks) ──▶ metrics ──▶ JSONL / WebSocket ──▶ Dashboard · HTML report
+          └── univis diff record ──▶ teacher-forced pass ──▶ on-device sketches ──▶ fingerprint.json
+                                                               univis diff compare ──▶ PASS / DIVERGE / UNKNOWN + HTML
 ```
 
-三层组成：采集 SDK（detection / probe / metrics / transport / tracker / pilot）、FastAPI WebSocket 服务、React 前端。核心设计是**边缘计算**：高维激活在 hook 内部就地降维为标量，监控永不阻塞推理。完整模块设计与 API 见 [ARCHITECTURE.md](ARCHITECTURE.md)，范围与动机见 [PRD.md](PRD.md)。
-
-## 工程质量
-
-- **83 项单元测试**（8 个测试文件）覆盖 SDK、server、报告生成、三终端链路与 Pilot，`pytest tests/` 全绿；
-- **GitHub Actions CI**：每次 push 在 Python 3.10 / 3.12 + CPU torch 上自动跑全量测试；
-- **已发布 PyPI**：`pip install univis`；Python ≥ 3.10 全类型注解，SDK 10 个模块，公开 API 统一在 `__init__.py` 导出。
-
 ```
-src/univis/      Python SDK —— attach() → on_step() → finish()
+src/univis/      Python SDK：detection · probe · metrics · transport · tracker · report · diff · pilot
 dashboard/       React 18 + TypeScript + ECharts 前端
-docs/images/     报告与图表样例
-examples/        可运行示例
-tests/           83 项单元测试
+docs/mxmaca/     C500 证据链：环境指纹、原始数据、对照脚本
+examples/        可运行示例（含 diff_fault_demo.py）
+tests/           91 项单元测试
 ```
+
+模块设计见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ## 路线图
 
-- **近期** —— Pilot early-exit：首批权衡数据已产出（C500，窗口判据），扩展到更多提示词集与 27B 级；C500 剩余 ~55% 采集开销的继续压缩；27B 级 C500 整机验证。
-- **中期** —— MXMACA 验证深化（阶段 C，对接 FlagGems / mcTriton 生态）；DiT / 视频生成模型（去噪步之间的时序冗余）；hook 下钻到 Attention / FFN 子层。
-- **远期** —— 70B+ 与 MoE 模型；接入主流推理框架。
+- **近期**：C500 上的 `univis diff` 参考指纹（阶段 C）；逐层耗时对照与 FlagGems 算子替换闭环（阶段 C+）；子层（attention / MLP）粒度的分叉定位。
+- **中期**：量化前后的逐层对照（W8A8 / W4A16），输出建议保留高精度的层；27B 级 C500 整机验证。
+- **远期**：更多国产算力栈；对接推理框架的数值回归检查。
 
-## 社区与合作
+## 参与贡献
 
-UniVis 已用于实验室内部日常诊断与教学演示。GitLink 镜像筹备中。欢迎贡献——新的指标插件、模型适配、Dashboard 视图与 benchmark 都有价值，参见 [CONTRIBUTING.md](CONTRIBUTING.md)；`metrics.py` 中的指标函数是纯函数、可独立测试，新增指标风险很低。
+欢迎提交 issue 和 PR：新的模型结构适配、在你自己硬件上录制的参考指纹、报告视图，都很有价值。参见 [CONTRIBUTING.md](CONTRIBUTING.md)。如果你在国产 GPU 上遇到「输出和 NVIDIA 不一样」的问题，欢迎开 issue，我们可以一起用 `univis diff` 定位。
 
 ## 许可证
 
@@ -284,4 +244,4 @@ UniVis 已用于实验室内部日常诊断与教学演示。GitLink 镜像筹�
 
 ## 鸣谢
 
-感谢中山大学 AI Systems 研究组提供的算力资源与技术讨论。本项目基于 PyTorch、FastAPI、React、ECharts 构建。
+感谢中山大学 AI Systems 研究组提供的算力资源与技术讨论。本项目基于 PyTorch、HuggingFace Transformers、FastAPI、React、ECharts 构建。
