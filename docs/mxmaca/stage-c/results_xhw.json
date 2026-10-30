@@ -1,0 +1,118 @@
+{
+ "short": {
+  "0.5B": {
+   "verdict": "PASS",
+   "max_ratio": 1.052,
+   "onset": null,
+   "sublayer": null,
+   "last_rel": 0.027349883690476418,
+   "top1": 0.9724,
+   "baseline_top1": 0.9862,
+   "summary": "PASS: every layer stays within 3x of the baseline error (max 1.05x)."
+  },
+  "3B": {
+   "verdict": "PASS",
+   "max_ratio": 1.0,
+   "onset": null,
+   "sublayer": null,
+   "last_rel": 0.023920556530356407,
+   "top1": 0.9793,
+   "baseline_top1": 0.9793,
+   "summary": "PASS: every layer stays within 3x of the baseline error (max 1.00x)."
+  },
+  "7B": {
+   "verdict": "PASS",
+   "max_ratio": 1.352,
+   "onset": null,
+   "sublayer": null,
+   "last_rel": 0.05183340236544609,
+   "top1": 0.9517,
+   "baseline_top1": 0.9586,
+   "summary": "PASS: every layer stays within 3x of the baseline error (max 1.35x)."
+  }
+ },
+ "long": {
+  "0.5B/sdpa": {
+   "verdict": "PASS",
+   "max_ratio": 1.0,
+   "onset": null,
+   "sublayer": null,
+   "last_rel": 0.017993256449699402,
+   "top1": 0.9879,
+   "baseline_top1": 0.9879,
+   "summary": "PASS: every layer stays within 3x of the baseline error (max 1.00x)."
+  },
+  "0.5B/flash_attention_2": {
+   "verdict": "PASS",
+   "max_ratio": 1.0,
+   "onset": null,
+   "sublayer": null,
+   "last_rel": 0.0181410014629364,
+   "top1": 0.9892,
+   "baseline_top1": 0.9879,
+   "summary": "PASS: every layer stays within 3x of the baseline error (max 1.00x)."
+  },
+  "0.5B/eager": {
+   "verdict": "DIVERGE",
+   "max_ratio": 3.001,
+   "onset": 1,
+   "sublayer": "mlp",
+   "last_rel": 0.0250514205545187,
+   "top1": 0.9849,
+   "baseline_top1": 0.9879,
+   "summary": "DIVERGE: error first exceeds the baseline error by 3.0x at block 0, MLP output (relative error 3.43e-02)."
+  },
+  "3B/sdpa": {
+   "verdict": "PASS",
+   "max_ratio": 1.0,
+   "onset": null,
+   "sublayer": null,
+   "last_rel": 0.02022509276866913,
+   "top1": 0.9918,
+   "baseline_top1": 0.9908,
+   "summary": "PASS: every layer stays within 3x of the baseline error (max 1.00x)."
+  },
+  "3B/flash_attention_2": {
+   "verdict": "PASS",
+   "max_ratio": 1.0,
+   "onset": null,
+   "sublayer": null,
+   "last_rel": 0.021045038476586342,
+   "top1": 0.9925,
+   "baseline_top1": 0.9908,
+   "summary": "PASS: every layer stays within 3x of the baseline error (max 1.00x)."
+  },
+  "3B/eager": {
+   "verdict": "PASS",
+   "max_ratio": 1.866,
+   "onset": null,
+   "sublayer": null,
+   "last_rel": 0.028682250529527664,
+   "top1": 0.9925,
+   "baseline_top1": 0.9908,
+   "summary": "PASS: every layer stays within 3x of the baseline error (max 1.87x)."
+  }
+ },
+ "fp32": {
+  "0.5B/fp32strict": {
+   "last_rel": 6.241446044441545e-06,
+   "max_rel": 6.241446044441545e-06,
+   "top1": 1.0
+  },
+  "0.5B/fp32tf32": {
+   "last_rel": 0.0016627099830657244,
+   "max_rel": 0.0016627099830657244,
+   "top1": 0.9931
+  },
+  "3B/fp32strict": {
+   "last_rel": 3.810849375440739e-05,
+   "max_rel": 3.810849375440739e-05,
+   "top1": 1.0
+  },
+  "3B/fp32tf32": {
+   "last_rel": 0.0008008317090570927,
+   "max_rel": 0.001079821609891951,
+   "top1": 1.0
+  }
+ }
+}

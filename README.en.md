@@ -118,21 +118,26 @@ flowchart LR
 
 Reproduce with `univis diff demo` or [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py). The fault is injected, so this shows the mechanism works; detection on real porting issues has to be shown on C500 (stage C below).
 
-### 2. MetaX C500, layer by layer (preliminary)
+### 2. MetaX C500, layer by layer
 
 <div align="center">
-<img src="https://cookiesheep.github.io/univis/assets/img/c500-layer-error.png" alt="C500 per-layer error" width="92%">
+<img src="https://cookiesheep.github.io/univis/assets/img/c500-vs-5090.png" alt="C500 vs RTX 5090 per-layer ratio" width="92%">
 </div>
 
-Qwen2.5-0.5B-Instruct against an x86 CPU fp32 reference (preliminary until the NVIDIA baseline is recorded):
+Reference: NVIDIA RTX 5090 fp32; tolerance: RTX 5090 bf16; both sides consume identical tokens:
 
-| Candidate | Last-layer relative error | Top-1 agreement | Verdict |
+| Model · input | C500 attention | Verdict | Max per-layer ratio |
 |---|---|---|---|
-| C500 bf16 | 2.73e-2 | 97.2% | **PASS**: every layer at 1.00–1.04× the error of a correct bf16 stack (x86 CPU) |
-| C500 fp32, TF32 off | 5.73e-6 | 100% | Practically bit-level agreement with CPU fp32 |
-| C500 fp32, image default (TF32 on) | 1.66e-3 | 99.3% | About 290× the TF32-off error |
+| Qwen2.5-0.5B / 3B / 7B · 8 prompts | sdpa | **all PASS** | 1.05 / 0.93 / 1.35 |
+| Qwen2.5-0.5B / 3B · 3 × 1024 tokens | sdpa | **PASS** | ≤ 1.0 |
+| Qwen2.5-0.5B / 3B · 3 × 1024 tokens | **MetaX flash-attn 2.6.3+metax** | **PASS** | ≤ 1.0 |
 
-A finding useful to MetaX users: **the official image runs fp32 matmuls as TF32 by default** (`TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1`). For strict fp32, set it to `0` and turn off `torch.backends.cuda.matmul.allow_tf32`. Details, environment fingerprint, and the recording script: [docs/mxmaca/stage-c/](docs/mxmaca/stage-c/README.md); interactive report [online](https://cookiesheep.github.io/univis/assets/reports/c500_diff_0.5B.html).
+- **Within the tested scope, every layer of C500 bf16 stays within normal bf16 error**, including with MetaX's own flash-attention, which is also about 1.5× faster than sdpa on 1024 tokens.
+- **The official image runs fp32 matmuls as TF32 by default** (`TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1`), error around $10^{-3}$; with TF32 off, C500 fp32 matches 5090 fp32 to about $10^{-5}$. Set it to `0` for strict fp32.
+- Re-running on the same C500 gives bit-identical fingerprints.
+- Lesson: the tolerance baseline must use **the same attention implementation** as the candidate; eager vs sdpa alone reaches about 3× (verified with a positive control).
+
+All data, interactive reports, both environment fingerprints, and recording scripts: [docs/mxmaca/stage-c/](docs/mxmaca/stage-c/README.md).
 
 ### 3. Layer-level agreement between MetaX C500 and NVIDIA L20
 
@@ -172,7 +177,7 @@ The same C500 session also drove a fix in UniVis itself: hook overhead fell from
 |---|---|---|
 | A | C500 collection path, with environment fingerprint | ✅ 2026-08-19 |
 | B | Cross-scale layer agreement, C500 vs NVIDIA | ✅ 2026-08-19 |
-| C | `univis diff` on C500: C500 fingerprints recorded (0.5B / 3B / 7B); 0.5B PASS against an x86 CPU baseline; once NVIDIA reference fingerprints are published, a single C500 is enough to check | 🔄 in progress (2026-10-30) |
+| C | `univis diff` on C500: Qwen2.5 0.5B / 3B / 7B all PASS against RTX 5090 layer by layer, incl. long sequences and MetaX flash-attn | ✅ 2026-10-30, [evidence](docs/mxmaca/stage-c/README.md) |
 | C+ | Per-layer latency: find layers that are slow on C500 → swap in FlagGems / mcTriton kernels → verify accuracy with diff | planned |
 
 ## Support contract and scope
@@ -181,7 +186,7 @@ The same C500 session also drove a fix in UniVis itself: hook overhead fell from
 |---|---|
 | Models | HuggingFace `AutoModelForCausalLM` with auto-detected decoder blocks (GPT-2, LLaMA, Qwen, Mistral families); `demo` needs a LLaMA layout (`model.layers[i].mlp.act_fn`) |
 | Inputs | 8 built-in Chinese/English, code, and math prompts, teacher-forced; `--tokens-from` reuses another side's token ids |
-| Verdict | With a baseline: DIVERGE when a layer exceeds 3× the baseline error, else PASS. Without: only jumps (3×) after the first block are detected, and PASS is never given |
+| Verdict | With a baseline: DIVERGE when a layer exceeds 3× the baseline error, else PASS. Without: only jumps (3×) after the first block are detected, and PASS is never given; the tolerance baseline should use the same attention implementation as the candidate |
 | Estimate accuracy | 64-dim sketches estimated per-layer relative error within about 25% of the exact value in the CPU demo, enough for a 3× threshold; raise `--dim` for tighter estimates |
 | Out of scope | Training and backward passes; task-level accuracy (use lm-eval, OpenCompass); "porting certified" claims; per-layer checks inside inference engines such as vLLM |
 

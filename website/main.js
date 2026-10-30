@@ -427,7 +427,7 @@
     { f: 'l20_3B', hw: 'l20', m: 'Qwen2.5-3B', note: '36 层 · r = 1.0000 · MAE 0.0007', chart: '预测熵轨迹' },
     { f: 'c500_7B', hw: 'c500', m: 'Qwen2.5-7B', note: '15.3GB bf16 跑通 16GB 切分实例 · 28 层', chart: '冗余排名 treemap' },
     { f: 'l20_7B', hw: 'l20', m: 'Qwen2.5-7B', note: 'r = 1.0000 · MAE 0.0005（三规模最紧）', chart: '层级画像条带' },
-    { f: 'c500_diff_0.5B', hw: 'c500', m: 'Qwen2.5-0.5B · univis diff', note: '阶段 C · C500 bf16 每层误差为正常 bf16 的 1.00–1.04 倍 · 发现镜像默认 TF32', chart: '逐层误差与容差基线', thumb: 'assets/img/c500-layer-error.png' },
+    { f: 'c500_vs_5090_7B', hw: 'c500', m: 'Qwen2.5-7B · C500 对 RTX 5090', note: '阶段 C · univis diff 逐层对照 PASS（每层 ≤1.35×）· 0.5B/3B/长序列/沐曦 flash-attn 同样 PASS', chart: '逐层误差与容差基线', thumb: 'assets/img/c500-vs-5090.png' },
     { f: 'diff_cpu_demo', hw: 'cpu', m: 'SmolLM2-135M · univis diff', note: '单个错误算子 vs bf16 精度误差 · 定位到 block 17 · CPU 可复现', chart: '逐层误差与分叉起点', thumb: 'assets/img/diff-report.png' },
   ];
   var HW = { c500: ['MetaX C500', 'MetaX C500 · MXMACA'], l20: ['NVIDIA L20', 'NVIDIA L20'], cpu: ['CPU', 'CPU · diff'] };

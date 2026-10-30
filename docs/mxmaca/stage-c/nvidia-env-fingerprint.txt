@@ -1,0 +1,8 @@
+Fri Oct 30 08:57:04 AM UTC 2026
+name, driver_version, memory.total [MiB]
+NVIDIA GeForce RTX 5090, 580.65.06, 32607 MiB
+torch 2.14.1+cu130 cuda 13.0
+transformers 5.20.2
+univis 0.7.1
+device NVIDIA GeForce RTX 5090
+allow_tf32 False

@@ -118,21 +118,26 @@ flowchart LR
 
 复现：`univis diff demo`，或 [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py)。错误是人为注入的，只能说明机制成立；在真实适配问题上的检出能力，要靠 C500 实测来证明（见下方路线图阶段 C）。
 
-### 2. 沐曦曦云 C500 真机：逐层对照（初步）
+### 2. 沐曦曦云 C500 真机：逐层对照
 
 <div align="center">
-<img src="https://cookiesheep.github.io/univis/assets/img/c500-layer-error.png" alt="C500 per-layer error" width="92%">
+<img src="https://cookiesheep.github.io/univis/assets/img/c500-vs-5090.png" alt="C500 vs RTX 5090 per-layer ratio" width="92%">
 </div>
 
-Qwen2.5-0.5B-Instruct，参考为 x86 CPU fp32（NVIDIA 基线待补录，所以是初步结论）：
+参考为 NVIDIA RTX 5090 fp32，容差为 RTX 5090 bf16，两端输入逐 token 相同：
 
-| 待检端 | 末层相对误差 | top-1 一致率 | 判定 |
+| 模型 · 输入 | C500 注意力实现 | 判定 | 每层最大倍数 |
 |---|---|---|---|
-| C500 bf16 | 2.73e-2 | 97.2% | **PASS**：每层误差为正常 bf16（x86 CPU）的 1.00–1.04 倍 |
-| C500 fp32，TF32 关闭 | 5.73e-6 | 100% | 与 CPU fp32 几乎逐位一致 |
-| C500 fp32，镜像默认（TF32 开启） | 1.66e-3 | 99.3% | 约为关闭时的 290 倍 |
+| Qwen2.5-0.5B / 3B / 7B · 8 条提示词 | sdpa | **全部 PASS** | 1.05 / 0.93 / 1.35 |
+| Qwen2.5-0.5B / 3B · 3 段 × 1024 token | sdpa | **PASS** | ≤ 1.0 |
+| Qwen2.5-0.5B / 3B · 3 段 × 1024 token | **沐曦 flash-attn 2.6.3+metax** | **PASS** | ≤ 1.0 |
 
-一个对沐曦用户有用的发现：**官方镜像默认把 fp32 矩阵乘法按 TF32 执行**（`TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1`）。需要严格 fp32 时设为 `0`，并关掉 `torch.backends.cuda.matmul.allow_tf32`。详情、环境指纹与录制脚本见 [docs/mxmaca/stage-c/](docs/mxmaca/stage-c/README.md)，交互报告可[在线打开](https://cookiesheep.github.io/univis/assets/reports/c500_diff_0.5B.html)。
+- **在所测范围内，C500 的 bf16 计算每一层都处于正常 bf16 误差之内**；换上沐曦自带的 flash-attention 后同样如此，而且处理 1024 token 比 sdpa 快约 1.5 倍。
+- **官方镜像默认把 fp32 矩阵乘法按 TF32 执行**（`TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1`），误差约 $10^{-3}$；关掉后 C500 fp32 与 5090 fp32 只差 $10^{-5}$ 量级。需要严格 fp32 时把它设为 `0`。
+- 同一台 C500 上重复运行，逐层指纹逐位一致。
+- 方法教训：容差基线要和待检端用**同一种注意力实现**，否则 eager 对 sdpa 本身就会差到约 3 倍（已用阳性对照核实）。
+
+全部数据、交互报告、两端环境指纹与录制脚本：[docs/mxmaca/stage-c/](docs/mxmaca/stage-c/README.md)。
 
 ### 3. 沐曦曦云 C500 与 NVIDIA L20 的层级一致性
 
@@ -172,7 +177,7 @@ Qwen2.5-0.5B-Instruct，参考为 x86 CPU fp32（NVIDIA 基线待补录，所以
 |---|---|---|
 | A | C500 指标采集通路验证（含环境指纹） | ✅ 2026-08-19 |
 | B | C500 与 NVIDIA 跨规模层级一致性 | ✅ 2026-08-19 |
-| C | C500 上的 `univis diff`：C500 指纹已录（0.5B / 3B / 7B）；0.5B 以 x86 CPU 为基线 PASS；补录 NVIDIA 参考指纹后，持有 C500 的人单卡即可比对 | 🔄 进行中（2026-10-30） |
+| C | C500 上的 `univis diff`：Qwen2.5 0.5B / 3B / 7B 对 RTX 5090 逐层全部 PASS，含长序列与沐曦 flash-attn | ✅ 2026-10-30，[证据](docs/mxmaca/stage-c/README.md) |
 | C+ | 逐层耗时对照：找出在 C500 上偏慢的层 → 换上 FlagGems / mcTriton 算子 → 用 diff 验证精度不变 | 计划中 |
 
 ## 精确支持契约与范围声明
@@ -181,7 +186,7 @@ Qwen2.5-0.5B-Instruct，参考为 x86 CPU fp32（NVIDIA 基线待补录，所以
 |---|---|
 | 模型 | HuggingFace `AutoModelForCausalLM`，decoder block 自动识别（GPT-2、LLaMA、Qwen、Mistral 系）；`demo` 需要 LLaMA 结构（`model.layers[i].mlp.act_fn`） |
 | 输入 | 内置 8 条中英文、代码、数学提示词，teacher forcing；可用 `--tokens-from` 复用另一端的 token id |
-| 判定 | 有基线：某层误差超过基线误差 3 倍即 DIVERGE，否则 PASS；无基线：只检测第 1 个 block 之后的层间突变（3 倍），给不出 PASS |
+| 判定 | 有基线：某层误差超过基线误差 3 倍即 DIVERGE，否则 PASS；无基线：只检测第 1 个 block 之后的层间突变（3 倍），给不出 PASS；容差基线应与待检端使用同一种注意力实现 |
 | 估计精度 | 64 维草图对单层相对误差的估计，在 CPU 演示中与精确值最多相差约 25%，对 3 倍阈值足够；需要更紧可加大 `--dim` |
 | 不做什么 | 训练与反向传播；任务级精度评测（请用 lm-eval、OpenCompass）；「适配合格」认证；vLLM 等推理引擎内部的逐层检查 |
 
