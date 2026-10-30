@@ -1,300 +1,316 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>UniVis — 国产 GPU 上的大模型，逐层对照</title>
-<meta name="description" content="模型搬上国产 GPU，哪一层算错了，一眼看见。UniVis 是开源的大模型逐层数值对照工具，已在沐曦曦云 C500 上完成真机验证。">
-<meta property="og:title" content="UniVis — 国产 GPU 上的大模型，逐层对照">
-<meta property="og:image" content="https://cookiesheep.github.io/univis/assets/img/hero.png">
-<style>
-:root{--bg:#06080a;--bg2:#0a0f0e;--panel:rgba(255,255,255,.035);--panel2:rgba(255,255,255,.06);--line:rgba(255,255,255,.09);--line2:rgba(255,255,255,.16);
---txt:#e9eeeb;--dim:#8b968f;--dim2:#5f6a64;--green:#4ade80;--brand:#3b915d;--orange:#fb923c;--orange2:#f97316;--cyan:#22d3ee;--violet:#a78bfa;
---sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;--mono:"JetBrains Mono","SFMono-Regular",Consolas,"Liberation Mono",monospace}
-*{box-sizing:border-box}html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-a{color:inherit;text-decoration:none}
-.container{max-width:1200px;margin:0 auto;padding:0 28px}
-/* nav */
-.nav{position:fixed;inset:0 0 auto 0;z-index:50;backdrop-filter:saturate(1.4) blur(14px);-webkit-backdrop-filter:saturate(1.4) blur(14px);background:rgba(6,8,10,.62);border-bottom:1px solid var(--line)}
-.nav .container{display:flex;align-items:center;height:64px;gap:28px}
-.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;letter-spacing:-.01em}
-.glyph{display:flex;gap:2px;align-items:flex-end;height:18px}.glyph i{width:3px;border-radius:2px;background:var(--green)}.glyph i:nth-child(5){background:var(--orange)}
-.nav nav{display:flex;gap:24px;font-size:14px;color:var(--dim)}.nav nav a:hover{color:var(--txt)}
-.nav .sp{flex:1}
-.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border-radius:10px;font-size:14.5px;font-weight:600;border:1px solid var(--line2);background:var(--panel);transition:.2s}
-.btn:hover{border-color:rgba(255,255,255,.3);background:var(--panel2)}
-.btn.primary{background:var(--txt);color:#071009;border-color:transparent}.btn.primary:hover{background:#fff;box-shadow:0 8px 30px -8px rgba(74,222,128,.55)}
-.btn.lg{height:50px;padding:0 24px;font-size:16px;border-radius:12px}
-@media(max-width:860px){.nav nav{display:none}}
-/* hero */
-.hero{position:relative;padding:150px 0 90px;overflow:hidden}
-.hero:before{content:"";position:absolute;inset:-20% -10% auto;height:900px;background:radial-gradient(600px 380px at 30% 30%,rgba(74,222,128,.16),transparent 70%),radial-gradient(520px 360px at 78% 45%,rgba(251,146,60,.12),transparent 70%);pointer-events:none}
-.hero:after{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(70% 60% at 50% 30%,#000 30%,transparent 80%);-webkit-mask-image:radial-gradient(70% 60% at 50% 30%,#000 30%,transparent 80%);opacity:.5;pointer-events:none}
-.hero .container{position:relative;z-index:1}
-.eyebrow{display:inline-flex;align-items:center;gap:10px;padding:6px 14px 6px 8px;border:1px solid var(--line2);border-radius:999px;font-size:13px;color:var(--dim);background:rgba(255,255,255,.03)}
-.eyebrow b{background:rgba(74,222,128,.14);color:var(--green);padding:2px 9px;border-radius:999px;font-weight:600}
-h1{font-size:clamp(40px,6.4vw,78px);line-height:1.06;letter-spacing:-.035em;margin:26px 0 22px;font-weight:800}
-.grad{background:linear-gradient(92deg,#fff 0%,#c9f7dc 40%,var(--green) 70%,var(--orange) 105%);-webkit-background-clip:text;background-clip:text;color:transparent}
-.sub{font-size:clamp(17px,1.9vw,21px);color:var(--dim);max-width:720px;margin:0 0 34px}
-.sub b{color:var(--txt);font-weight:600}
-.ctas{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
-.pip{font-family:var(--mono);font-size:14px;color:var(--dim);padding:0 16px;height:50px;display:inline-flex;align-items:center;gap:10px;border:1px dashed var(--line2);border-radius:12px;cursor:pointer}
-.pip:hover{color:var(--txt)}.pip span{color:var(--green)}
-/* scanner */
-.scanner{margin-top:64px;border:1px solid var(--line2);border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));box-shadow:0 40px 120px -40px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.02) inset;overflow:hidden}
-.scan-top{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12.5px;color:var(--dim)}
-.dots i{display:inline-block;width:11px;height:11px;border-radius:50%;background:#2a2f2d;margin-right:6px}
-.scan-top .tag{margin-left:auto;color:var(--dim2)}
-.scan-body{display:grid;grid-template-columns:1fr 300px}
-@media(max-width:900px){.scan-body{grid-template-columns:1fr}}
-#scan{width:100%;height:360px;display:block}
-.readout{border-left:1px solid var(--line);padding:22px;display:flex;flex-direction:column;gap:16px;font-size:14px}
-.readout .lbl{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim2)}
-.readout .val{font-size:26px;font-weight:700;letter-spacing:-.01em}
-.verdict{display:inline-block;padding:4px 12px;border-radius:8px;font-family:var(--mono);font-weight:700;font-size:15px;background:rgba(74,222,128,.12);color:var(--green);transition:.3s}
-.verdict.div{background:rgba(251,146,60,.15);color:var(--orange)}
-.cmp{display:flex;gap:10px}.cmp div{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
-.cmp small{display:block;color:var(--dim2);font-size:11.5px}.cmp b{font-size:19px}
-/* sections */
-section{position:relative;padding:120px 0}
-.kicker{font-family:var(--mono);font-size:13px;color:var(--green);letter-spacing:.06em;margin-bottom:16px}
-h2{font-size:clamp(30px,4vw,50px);line-height:1.12;letter-spacing:-.03em;margin:0 0 20px;font-weight:800}
-.lead{font-size:18px;color:var(--dim);max-width:760px;margin:0}
-.reveal{opacity:0;transform:translateY(24px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
-.reveal.in{opacity:1;transform:none}
-.trust{padding:28px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg2)}
-.trust .container{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:center;color:var(--dim);font-size:14px}
-.trust b{color:var(--txt);font-weight:600;margin-right:6px}
-/* problem */
-.duo{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:56px}
-@media(max-width:800px){.duo{grid-template-columns:1fr}}
-.duo .c{border:1px solid var(--line);border-radius:20px;padding:34px;background:var(--panel);position:relative;overflow:hidden}
-.duo .c .big{font-size:clamp(64px,9vw,112px);font-weight:800;letter-spacing:-.05em;line-height:1}
-.duo .c p{color:var(--dim);margin:14px 0 0}
-.duo .c.bad{border-color:rgba(251,146,60,.35)}
-.duo .c.bad:after{content:"block 17 · MLP 写错";position:absolute;top:18px;right:18px;font-family:var(--mono);font-size:12px;color:var(--orange);border:1px solid rgba(251,146,60,.4);padding:3px 9px;border-radius:7px}
-.eq{text-align:center;margin-top:28px;font-size:20px;color:var(--dim)}.eq b{color:var(--txt)}
-/* steps */
-.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:56px}
-@media(max-width:960px){.steps{grid-template-columns:1fr 1fr}}
-.step{border:1px solid var(--line);border-radius:18px;padding:26px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.01));transition:.3s}
-.step:hover{border-color:rgba(74,222,128,.4);transform:translateY(-4px)}
-.step .n{font-family:var(--mono);color:var(--green);font-size:13px}
-.step h3{font-size:20px;margin:12px 0 10px;letter-spacing:-.01em}
-.step p{color:var(--dim);font-size:14.5px;margin:0}
-.step code{font-family:var(--mono);font-size:12.5px;color:var(--cyan)}
-/* results */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:20px;overflow:hidden;margin-top:56px}
-@media(max-width:900px){.stats{grid-template-columns:1fr 1fr}}
-.stat{background:var(--bg);padding:30px 26px}
-.stat .v{font-size:clamp(36px,4.6vw,56px);font-weight:800;letter-spacing:-.04em;line-height:1}
-.stat .l{color:var(--dim);font-size:14px;margin-top:10px}
-.chartcard{margin-top:20px;border:1px solid var(--line);border-radius:20px;padding:26px 26px 14px;background:var(--panel)}
-.chartcard .h{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--dim)}
-.legend span{margin-left:16px;white-space:nowrap}.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
-#ratio{width:100%;height:340px;display:block;margin-top:10px}
-.foot{font-size:12.5px;color:var(--dim2);margin-top:8px}
-.finds{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
-@media(max-width:800px){.finds{grid-template-columns:1fr}}
-.find{border:1px solid var(--line);border-radius:20px;padding:30px;background:var(--panel)}
-.find .v{font-size:56px;font-weight:800;letter-spacing:-.04em;line-height:1}
-.find h4{font-size:19px;margin:14px 0 8px}.find p{color:var(--dim);font-size:14.5px;margin:0}
-.find pre{margin:16px 0 0;font-family:var(--mono);font-size:12.5px;color:var(--cyan);background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow:auto}
-/* app frame */
-.frame{margin-top:56px;border:1px solid var(--line2);border-radius:18px;overflow:hidden;background:#0d1110;box-shadow:0 50px 140px -50px rgba(74,222,128,.25)}
-.frame .bar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line)}
-.frame .url{flex:1;text-align:center;font-family:var(--mono);font-size:12.5px;color:var(--dim);background:rgba(255,255,255,.04);border-radius:8px;padding:5px;margin:0 60px}
-.frame iframe{width:100%;height:880px;border:0;display:block;background:#faf9f9}
-@media(max-width:700px){.frame iframe{height:1400px}}
-video{width:100%;border-radius:18px;border:1px solid var(--line2);display:block;margin-top:56px;background:#000}
-/* evidence */
-.ev{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px}
-@media(max-width:900px){.ev{grid-template-columns:1fr}}
-.ev a{border:1px solid var(--line);border-radius:18px;padding:24px;background:var(--panel);transition:.25s;display:block}
-.ev a:hover{border-color:var(--line2);transform:translateY(-3px)}
-.ev h4{margin:0 0 8px;font-size:17px}.ev p{margin:0;color:var(--dim);font-size:14px}.ev span{display:block;margin-top:14px;font-size:13px;color:var(--green)}
-/* get started */
-.term{margin-top:48px;border:1px solid var(--line2);border-radius:16px;background:#050706;font-family:var(--mono);font-size:14.5px;overflow:hidden}
-.term .bar{padding:10px 14px;border-bottom:1px solid var(--line);color:var(--dim2);font-size:12px}
-.term pre{margin:0;padding:22px 24px;line-height:1.85;overflow:auto;color:#cfd8d3}
-.term .p{color:var(--green)}.term .c{color:var(--dim2)}.term .o{color:var(--orange)}
-.cta{text-align:center;padding:130px 0 120px;background:radial-gradient(600px 300px at 50% 0%,rgba(74,222,128,.12),transparent 70%)}
-footer{border-top:1px solid var(--line);padding:36px 0;color:var(--dim2);font-size:13.5px}
-footer .container{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
-footer a:hover{color:var(--txt)}
-</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UniVis · Transformer 推理冗余诊断 — 真机证据画廊</title>
+<meta name="description" content="UniVis：零侵入诊断大模型推理时哪些层在真正计算、哪些在冗余。沐曦曦云 C500 与 NVIDIA L20 真机证据，无卡可审计。">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2308090d'/%3E%3Ccircle cx='10' cy='20' r='4' fill='%237e03a8'/%3E%3Ccircle cx='19' cy='13' r='4' fill='%23cc4778'/%3E%3Ccircle cx='24' cy='22' r='3' fill='%23f0f921'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,500;9..40,700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script>
+/* theme boot before first paint (no flash) */
+(function () {
+  var t = null;
+  try { t = localStorage.getItem('univis-theme'); } catch (e) {}
+  if (t !== 'dark' && t !== 'light') {
+    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 </head>
 <body>
-<header class="nav"><div class="container">
-<a class="logo" href="#"><span class="glyph"><i style="height:7px"></i><i style="height:11px"></i><i style="height:9px"></i><i style="height:14px"></i><i style="height:18px"></i><i style="height:12px"></i></span>UniVis</a>
-<nav><a href="#problem">问题</a><a href="#how">原理</a><a href="#c500">C500 实测</a><a href="#play">在线体验</a><a href="#film">影片</a><a href="evidence.html">证据库</a></nav>
-<span class="sp"></span>
-<a class="btn" href="https://github.com/cookiesheep/univis">GitHub</a>
-</div></header>
+<canvas id="bgCanvas" aria-hidden="true"></canvas>
 
-<div class="hero"><div class="container">
-<span class="eyebrow reveal"><b>v0.7</b>已在沐曦曦云 C500 完成真机验证 · 开源 MIT</span>
-<h1 class="reveal">模型搬上国产 GPU，<br><span class="grad">哪一层算错了，一眼看见。</span></h1>
-<p class="sub reveal">输出只差一点点，是正常的精度误差，还是某个算子写错了？<b>UniVis 逐层对照两次运行</b>，指出分叉从哪一层、哪个子层开始。一行命令，CPU 也能跑。</p>
-<div class="ctas reveal"><a class="btn primary lg" href="#play">在线体验，不用 GPU</a><a class="btn lg" href="#film">▶ 看 60 秒影片</a><span class="pip" id="pip" title="点击复制"><span>$</span> pip install "univis[hf]"</span></div>
-<div class="scanner reveal">
-<div class="scan-top"><span class="dots"><i></i><i></i><i></i></span>univis diff · SmolLM2-135M · 30 blocks · 208 positions<span class="tag">真实运行数据</span></div>
-<div class="scan-body"><canvas id="scan"></canvas>
-<div class="readout">
-<div><div class="lbl">verdict</div><span class="verdict" id="vd">SCANNING</span></div>
-<div><div class="lbl">onset</div><div class="val" id="on">—</div></div>
-<div class="cmp"><div><small>只看输出 · 正确栈</small><b>96.2%</b></div><div><small>只看输出 · 写错</small><b>96.2%</b></div></div>
-<div style="color:var(--dim);font-size:13px">最终输出的 top-1 一致率完全相同，逐层对照却能指出：误差从 <b style="color:var(--orange)">block 17 的 MLP</b> 开始超出正常 bf16 误差。</div>
-</div></div></div>
-</div></div>
+<nav class="nav" aria-label="主导航">
+  <a class="brand" href="#top"><span class="brand-dot" aria-hidden="true"></span>UniVis<span class="brand-sub">/ 国产 GPU 逐层对照</span></a>
+  <div class="nav-links">
+    <a href="play.html">在线体验</a>
+    <a href="#diff">逐层对照</a>
+    <a href="#gallery">报告画廊</a>
+    <a href="#crosshw">跨硬件一致</a>
+    <a href="#timeline">C500 实录</a>
+    <a href="#earlyexit">实验记录</a>
+    <a href="#honest">负结果</a>
+    <a href="#contract">契约</a>
+    <a href="#ack">真机硬件</a>
+    <button id="themeToggle" class="theme-btn" aria-label="切换亮色/暗色模式" title="切换亮色/暗色">
+      <svg class="ic-moon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 9.5A6 6 0 1 1 6.5 2.5a5 5 0 0 0 7 7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <svg class="ic-sun" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3.2" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.8 2.8l1.4 1.4M11.8 11.8l1.4 1.4M13.2 2.8l-1.4 1.4M4.2 11.8l-1.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</nav>
 
-<div class="trust"><div class="container"><span><b>MetaX 曦云 C500</b>MXMACA 3.3</span><span><b>NVIDIA RTX 5090</b>· L20</span><span><b>x86 CPU</b>零 GPU 可复现</span><span><b>Qwen2.5</b>0.5B · 3B · 7B</span><span><b>94</b>项测试 · PyPI</span></div></div>
+<!-- ============ HERO ============ -->
+<header id="top" class="hero">
+  <div class="hero-inner">
+    <p class="kicker reveal">AI Infra · 国产算力适配 · MetaX C500 · MIT 开源</p>
+    <h1 class="reveal">国产 GPU 上的大模型，<em>逐层对照</em>：<br><span class="dim">算得对不对，从哪一层开始不对。</span></h1>
+    <p class="lede reveal">同一个模型换了卡、换了软件栈或算子库，输出总会有点不同。UniVis 用 forward hook 在每一层出口记下几 MB 的数值指纹，
+    逐层对照，判断这点不同是正常精度误差，还是<b>从某一层开始的算子问题</b>（<a href="#diff">看实测</a>）。
+    下面的热力图不是动画素材——是 <b>Qwen2.5-7B 在沐曦曦云 C500 上真实生成的 478 个 token × 28 层遥测回放</b>。</p>
+    <div class="hero-canvas-wrap reveal">
+      <canvas id="heroCanvas" width="1200" height="420" role="img"
+        aria-label="Qwen2.5-7B 在 MetaX C500 上的逐层活跃度热力图，颜色由暗到亮表示该层对该 token 的改变幅度"></canvas>
+      <div class="hero-readout" aria-hidden="true">
+        <span class="mono" id="roToken">token 000/478</span>
+        <span class="mono" id="roState">replaying…</span>
+      </div>
+      <p class="hero-cap mono">live telemetry · Qwen2.5-7B · MetaX Xiyun C500 (MXMACA) · greedy · per-layer scaled for visibility · data committed in-repo</p>
+    </div>
+    <div class="cta reveal">
+      <a class="btn primary" href="play.html">在线体验（不用 GPU）</a>
+      <a class="btn" href="#video">4 分钟介绍视频</a>
+      <a class="btn" href="https://github.com/cookiesheep/univis" rel="noopener">GitHub 仓库</a>
+      <a class="btn" href="#gallery">查看真机报告（无卡可审计）</a>
+      <button class="btn ghost mono" id="pipBtn" title="点击复制">pip install "univis[hf]"</button>
+    </div>
+    <dl class="hero-stats reveal">
+      <div><dt>单个错误算子</dt><dd>定位到 block 17 <span class="dim">(输出一致率不变)</span></dd></div>
+      <div><dt>跨硬件画像一致性</dt><dd>r = 1.0000</dd></div>
+      <div><dt>验证规模</dt><dd>0.5B → 27B <span class="dim">(54×)</span></dd></div>
+      <div><dt>单元测试</dt><dd>94 · CI 全绿</dd></div>
+      
+    </dl>
+  </div>
+</header>
 
-<section id="problem"><div class="container">
-<div class="kicker reveal">01 / 问题</div>
-<h2 class="reveal">只看最终输出，<br>分不出「正常误差」和「算子写错」。</h2>
-<p class="lead reveal">同一个模型换了硬件、软件栈或算子库，输出总会有一点点不同。bf16 本来就有误差——真正的问题是：这点不同，到底正不正常？</p>
-<div class="duo">
-<div class="c reveal"><div class="big" style="color:var(--green)">96.2%</div><p>数值栈完全正确的 bf16<br>与参考答案的 top-1 一致率</p></div>
-<div class="c bad reveal"><div class="big" style="color:var(--orange)">96.2%</div><p>第 17 层 MLP 激活函数被写错的 bf16<br>与参考答案的 top-1 一致率</p></div>
-</div>
-<p class="eq reveal">一模一样。<b>差异藏在中间某一层里。</b></p>
-</div></section>
+<main>
+<!-- ============ VIDEO ============ -->
+<section id="video" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">4 分钟了解 UniVis</p>
+    <h2>问题、方法、C500 真机结果，一次看完</h2>
+    <p class="lede">配中文旁白与字幕。也可以<a href="play.html">直接上手在线体验</a>，或下载<a href="assets/slides/UniVis.pdf">项目介绍（PDF）</a>。</p>
+  </div>
+  <video class="reveal" controls preload="none" poster="assets/img/video-poster.jpg" style="width:100%;border-radius:12px;border:1px solid var(--line)">
+    <source src="assets/video/UniVis-intro.mp4" type="video/mp4">
+  </video>
+</section>
 
-<section id="how" style="background:var(--bg2)"><div class="container">
-<div class="kicker reveal">02 / 原理</div>
-<h2 class="reveal">四步，全部在 forward hook 里完成。</h2>
-<p class="lead reveal">不改模型、不搬 GB 级张量。两台机器各存几 MB 指纹，任何人都能在 CPU 上复核结论。</p>
-<div class="steps">
-<div class="step reveal"><div class="n">01</div><h3>Teacher forcing</h3><p>两端喂完全相同的 token，一次前向跑完，逐位置严格对齐，不受贪心分叉干扰。</p></div>
-<div class="step reveal"><div class="n">02</div><h3>端侧草图</h3><p>每层出口投影到 64 维。投影是线性的：<code>P(a)−P(b)=P(a−b)</code>，草图即可估计误差。</p></div>
-<div class="step reveal"><div class="n">03</div><h3>容差基线</h3><p>以一个已知正常的同精度实现作为「正常误差」，而不是拍脑袋定一个阈值。</p></div>
-<div class="step reveal"><div class="n">04</div><h3>三态判定</h3><p><code>PASS</code> · <code>DIVERGE</code>（起点层 + attention / MLP）· <code>UNKNOWN</code>，退出码可直接接入 CI。</p></div>
-</div></div></section>
+<!-- ============ DIFF ============ -->
+<section id="diff" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">00 · univis diff · 逐层对照</p>
+    <h2>只看输出分不出来，逐层对照一眼定位</h2>
+    <p class="lede">在 SmolLM2-135M 的第 17 层故意换错一个激活函数，模拟一个写错的算子。和 fp32 参考答案比，它的 top-1 一致率与数值栈完全正确的 bf16 <b>一样都是 96.2%</b>；
+    逐层对照则指出误差从 <b>block 17 的 MLP 输出</b>开始超出正常 bf16 误差的 3 倍。一行命令、CPU 上约 40 秒即可复现：<span class="mono">univis diff demo</span>。</p>
+  </div>
+  <div class="rtable reveal">
+    <table>
+      <thead><tr><th>待检端</th><th>top-1 一致率</th><th>UniVis 逐层判定</th></tr></thead>
+      <tbody>
+        <tr><td>bf16，数值栈正确</td><td>96.2%</td><td>—（作为容差基线）</td></tr>
+        <tr class="bad"><td>bf16，第 17 层算子错误（SiLU → tanh-GELU）</td><td>96.2%</td><td>DIVERGE @ block 17 · MLP 输出（基线误差的 3.3 倍）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <a class="bigfig reveal" href="assets/reports/diff_cpu_demo.html" target="_blank" rel="noopener" style="display:block;max-height:640px;overflow:hidden">
+    <img src="assets/img/diff-report.png" alt="univis diff 报告：误差从 block 17 开始超出基线" loading="lazy">
+  </a>
+  <p class="footnote reveal">错误为人为注入，只说明机制成立；在真实适配问题上的检出能力，将在 C500 上用 NVIDIA 参考指纹实测（路线图阶段 C）。点击图片打开完整的交互报告。</p>
+</section>
 
-<section id="c500"><div class="container">
-<div class="kicker reveal">03 / 沐曦曦云 C500 真机</div>
-<h2 class="reveal">三个规模，每一层都在<br>正常 bf16 误差之内。</h2>
-<p class="lead reveal">参考为 NVIDIA RTX 5090 fp32，容差为 RTX 5090 bf16，两端输入逐 token 相同。倍数越过 3× 才判为分叉。</p>
-<div class="stats">
-<div class="stat reveal"><div class="v" style="color:var(--green)"><span data-count="3">3</span> / 3</div><div class="l">Qwen2.5 0.5B / 3B / 7B 全部 PASS</div></div>
-<div class="stat reveal"><div class="v">≤ <span data-count="1.35" data-dec="2">1.35</span>×</div><div class="l">每层误差相对 NVIDIA bf16 的最大倍数</div></div>
-<div class="stat reveal"><div class="v" style="color:var(--cyan)"><span data-count="1.47" data-dec="2">1.47</span>×</div><div class="l">沐曦 flash-attn 比 sdpa 更快，精度同样 PASS</div></div>
-<div class="stat reveal"><div class="v" style="color:var(--orange)"><span data-count="290">290</span>×</div><div class="l">镜像默认 TF32 相对严格 fp32 的误差</div></div>
-</div>
-<div class="chartcard reveal"><div class="h"><span>每一层：C500 误差 ÷ RTX 5090 bf16 误差</span><span class="legend"><span><i style="background:var(--violet)"></i>0.5B</span><span><i style="background:var(--orange)"></i>3B</span><span><i style="background:var(--green)"></i>7B</span><span><i style="background:#ef4444"></i>判定阈值 3×</span></span></div>
-<canvas id="ratio"></canvas><div class="foot">C500：MACA 3.3.0.15 · torch 2.8.0+metax3.3.0.2　RTX 5090：torch 2.14.1+cu130　结论只覆盖所测模型、输入与软件栈。</div></div>
-<div class="finds">
-<div class="find reveal"><div class="v" style="color:var(--cyan)">PASS</div><h4>换上沐曦自带的 flash-attention</h4><p>1024 token 长序列下逐层精度仍在容差内；3B 模型前向耗时 109 ms → 74 ms。换算子之后，用 UniVis 确认没有算错。</p></div>
-<div class="find reveal"><div class="v" style="color:var(--orange)">TF32</div><h4>镜像里的「fp32」默认并不是 fp32</h4><p>官方镜像默认 <code style="font-family:var(--mono)">TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1</code>。需要严格 fp32 时关闭即可，C500 与 NVIDIA fp32 只差 1e-5 量级。</p>
-<pre>export TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0</pre></div>
-</div></div></section>
+<!-- ============ GALLERY ============ -->
+<section id="gallery" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">01 · 真机报告画廊</p>
+    <h2>每一份报告，都是可以在浏览器里直接复核的证据</h2>
+    <p class="lede">全部报告由仓库内提交的 JSONL 原始数据渲染，自包含单文件、无需任何 GPU 即可打开——
+    我们称之为<b>「无卡可审计」</b>：诊断工具本身就是证据链。<span class="hint">悬停卡片可预览，点击打开完整报告。</span></p>
+  </div>
+  <div class="report-grid" id="reportGrid"><!-- JS 注入 --></div>
+  <div id="thumbPreview" class="thumb-preview" aria-hidden="true"><img alt=""><span class="tp-cap mono"></span></div>
+  <p class="footnote reveal">指纹缩写：C500 = MetaX 曦云 C500（16GB sGPU 切分 · MXMACA 3.3.0.15 · torch 2.8.0+metax3.3.0.2）；
+  L20 = NVIDIA L20 48GB（torch 2.10.0+cu128 · transformers 4.57.6）。报告打开后右上角可见完整会话信息。多提示词集（0.5B×10 提示词、TinyLlama）报告因采集端一处已修复的缺陷暂缓上廊，C500 侧重采后恢复。</p>
+</section>
 
-<section id="play" style="background:var(--bg2)"><div class="container">
-<div class="kicker reveal">04 / 在线体验</div>
-<h2 class="reveal">亲手弄坏一层，看它能不能找出来。</h2>
-<p class="lead reveal">浏览器里直接操作真实数据：选一个被写错的算子、切换 C500 真机案例、拖动判定阈值。不用安装，不用 GPU。</p>
-<div class="frame reveal"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">cookiesheep.github.io/univis/play.html</span></div>
-<iframe src="play.html#mlp17" title="UniVis 在线体验"></iframe></div>
-</div></section>
+<!-- ============ CROSS-HW ============ -->
+<section id="crosshw" class="section alt">
+  <div class="section-head reveal">
+    <p class="kicker">02 · 跨硬件一致性</p>
+    <h2>同一模型，两种硬件，几乎相同的冗余画像</h2>
+    <p class="lede">同模型、同提示词、同解码协议（greedy · bf16 · 50 token），分别在沐曦 C500 与 NVIDIA L20 上诊断。
+    10 条多样化提示词协议下，Qwen2.5 三个规模的层级冗余画像 Pearson r = 1.0000——
+    <b>在一种硬件上得出的冗余结论，可以直接迁移到另一种硬件</b>。跨架构同样成立（TinyLlama-1.1B / Llama 架构，r = 0.9968）。</p>
+  </div>
+  <div class="rtable reveal">
+    <table>
+      <thead><tr><th>模型</th><th>架构</th><th>r（余弦画像）</th><th>r（Relative Delta）</th><th>MAE</th></tr></thead>
+      <tbody>
+        <tr><td>Qwen2.5-0.5B</td><td>Qwen2</td><td>1.0000</td><td>1.0000</td><td>0.0008</td></tr>
+        <tr><td>Qwen2.5-3B</td><td>Qwen2</td><td>1.0000</td><td>1.0000</td><td>0.0007</td></tr>
+        <tr><td>Qwen2.5-7B</td><td>Qwen2</td><td>1.0000</td><td>1.0000</td><td>0.0005</td></tr>
+        <tr class="hl"><td>TinyLlama-1.1B</td><td>Llama</td><td>0.9968</td><td>0.9998</td><td>0.0040</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="chart-pair">
+    <figure class="reveal"><img src="assets/img/cross_hw_0.5B.png" alt="0.5B 跨硬件冗余画像对比" loading="lazy" decoding="async">
+      <figcaption>Qwen2.5-0.5B · 24 层</figcaption></figure>
+    <figure class="reveal"><img src="assets/img/cross_hw_3B.png" alt="3B 跨硬件冗余画像对比" loading="lazy" decoding="async">
+      <figcaption>Qwen2.5-3B · 36 层</figcaption></figure>
+    <figure class="reveal"><img src="assets/img/cross_hw_7B.png" alt="7B 跨硬件冗余画像对比" loading="lazy" decoding="async">
+      <figcaption>Qwen2.5-7B · 28 层</figcaption></figure>
+  </div>
+</section>
 
-<section id="film"><div class="container">
-<div class="kicker reveal">05 / 影片</div>
-<h2 class="reveal">60 秒看懂 UniVis。</h2>
-<video controls preload="none" poster="assets/img/film-poster.jpg" class="reveal"><source src="assets/video/UniVis-film.mp4" type="video/mp4"></video>
-<p class="foot" style="margin-top:14px">项目介绍：<a href="deck.html" style="color:var(--green)">在线幻灯片</a> · <a href="assets/slides/UniVis.pdf" style="color:var(--green)">PDF</a> · <a href="assets/slides/UniVis.pptx" style="color:var(--green)">PPTX</a></p>
-</div></section>
+<!-- ============ SCALE ============ -->
+<section id="scale" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">03 · 跨规模实证</p>
+    <h2>中间层冗余最显著——0.5B 到 27B 稳定成立</h2>
+    <p class="lede">参数跨度约 54 倍（Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B hybrid）。层深度归一化后，
+    四个模型的中间段余弦相似度都明显高于浅层与深层：<b>冗余集中在模型的「腰上」</b>。</p>
+  </div>
+  <figure class="bigfig reveal">
+    <img src="assets/img/cross-scale.png" alt="跨规模冗余画像：0.5B 到 27B 中间层冗余最显著" loading="lazy" decoding="async">
+  </figure>
+</section>
 
-<section id="evidence" style="background:var(--bg2)"><div class="container">
-<div class="kicker reveal">06 / 无卡可审计</div>
-<h2 class="reveal">每一个结论，都能复核。</h2>
-<p class="lead reveal">环境指纹、原始结果、录制脚本、交互报告全部公开。我们也公开负结果和一次被自己查出来的假警报。</p>
-<div class="ev">
-<a class="reveal" href="https://github.com/cookiesheep/univis/tree/main/docs/mxmaca/stage-c"><h4>阶段 C：C500 逐层对照</h4><p>0.5B / 3B / 7B、长序列、flash-attn、TF32，两端环境指纹与脚本。</p><span>查看证据 →</span></a>
-<a class="reveal" href="assets/reports/c500_vs_5090_7B.html"><h4>交互报告：7B · C500 对 RTX 5090</h4><p>univis diff compare 生成的自包含报告，浏览器直接打开。</p><span>打开报告 →</span></a>
-<a class="reveal" href="evidence.html"><h4>证据库</h4><p>8 月以来的全部真机报告、跨硬件一致性、负结果的完整记录。</p><span>进入证据库 →</span></a>
-</div></div></section>
+<!-- ============ TIMELINE ============ -->
+<section id="timeline" class="section alt">
+  <div class="section-head reveal">
+    <p class="kicker">04 · MXMACA 适配实录</p>
+    <h2>MXMACA 适配实录：扎根 C500 的验证之路</h2>
+    <p class="lede">验证在 Gitee AI（模力方舟）平台的曦云 C500 实例上完成：从零代码修改跑通指标采集，
+    到跨硬件实证与工具自身的性能修复，每一步都留有可复核的原始数据与环境指纹。</p>
+  </div>
+  <ol class="tl" id="tl">
+    <li class="reveal"><span class="tl-time mono">01</span><div><h3>环境就位</h3><p>曦云 C500 实例，官方 MACA 3.x + PyTorch 2.8.0 镜像。环境指纹三件套（mx-smi / torch 版本 / 系统信息）先行留档。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">02</span><div><h3>阶段 A · 通路验证</h3><p>Qwen2.5-0.5B 完整生成，<b>零代码修改</b>挂上全部 24 层 hook，384 步指标全量采集，自包含 HTML 报告与 JSONL 落盘。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">03</span><div><h3>阶段 B · 三规模对照</h3><p>0.5B / 3B / 7B 与 NVIDIA L20 同协议对照，画像一致性 r ≥ 0.9998。边界实测：7B（bf16 权重 15.3GB）在 16GB 切分实例上完整跑通。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">04</span><div><h3>方法学加固</h3><p>L20 间隔两月重跑稳定性验证 r ≥ 0.9985——排除运行噪声，跨硬件差异只能来自数值栈。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">05</span><div><h3>early-exit 首轮：负结果与定位</h3><p>朴素逐 token 熵阈值 100% 过早截断。逐 token 熵序列追踪定位根因：格式化 token 形成散布全答案的超低熵簇（&lt;0.05 nats）。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">06</span><div><h3>窗口判据：从负结果到可用功能</h3><p>实现 entropy_window（连续 N 步低熵才退出）。24 提示词复测得到单调可控权衡曲线——负结果公开入库，修复成为 v0.6.0 功能。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">07</span><div><h3>工具自身的性能修复</h3><p>实测发现 hook 采集在多层数模型上拖慢生成 4–5 倍。重构为设备端张量化 + 每步单次批量回传：+400% → 约 +55%，指标数值逐位不变（MAE = 0.0000）。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">08</span><div><h3>实时演示与版本发布</h3><p>Qwen2.5-7B 经 SSH 隧道实时驱动 Dashboard，热力图逐 token 生长——本站 hero 即其截图数据。随后多提示词 r = 1.0000、TinyLlama 跨架构、v0.6.0 发布。</p></div></li>
+  </ol>
+</section>
 
-<section id="start"><div class="container">
-<div class="kicker reveal">07 / 开始使用</div>
-<h2 class="reveal">一行命令，30 秒出结果。</h2>
-<div class="term reveal"><div class="bar">terminal</div><pre><span class="p">$</span> pip install "univis[hf]"
-<span class="p">$</span> univis diff demo
-<span class="c">[1/3] fp32 reference: HuggingFaceTB/SmolLM2-135M on CPU</span>
-<span class="c">[2/3] bf16, correct (the tolerance baseline)</span>
-<span class="c">[3/3] bf16 with a wrong activation kernel in block 17</span>
-  correct bf16 : top-1 96.2%
-  broken  bf16 : top-1 96.2%  <span class="o">DIVERGE at block 17, MLP output (3.3x)</span>
+<!-- ============ EARLY-EXIT ============ -->
+<section id="earlyexit" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">05 · 实验记录：按熵提前结束</p>
+    <h2>按熵提前结束生成，本质是截短回答</h2>
+    <p class="lede">当模型连续多步足够自信时强制结束生成。省下的 token 来自截断，不是算得更快，所以我们不把它当作推理加速手段推荐。
+    横轴为熵阈值（log 刻度），纵轴为生成的 token 数（% 相对基线）——曲线上的每一点都是 C500 上的真实测量（24 条多样化提示词，窗口 = 5）。</p>
+  </div>
+  <div class="ee-wrap reveal">
+    <div class="ee-controls" role="tablist" aria-label="选择模型">
+      <button class="pill active" data-model="q05" role="tab" aria-selected="true">Qwen2.5-0.5B</button>
+      <button class="pill" data-model="q3" role="tab" aria-selected="false">Qwen2.5-3B</button>
+    </div>
+    <canvas id="eeChart" width="960" height="420" role="img" aria-label="熵阈值与生成 token 占比的权衡曲线"></canvas>
+    <p class="mono" id="eeTip">悬停查看每个阈值的取舍</p>
+  </div>
+</section>
 
-<span class="c"># 用在你自己的模型上：参考端、容差基线、待检端，三份指纹可以在三台机器上录</span>
-<span class="p">$</span> univis diff compare ref.json c500.json --baseline nvidia.json -o report.html</pre></div>
-</div></section>
+<!-- ============ HONEST ============ -->
+<section id="honest" class="section alt">
+  <div class="section-head reveal">
+    <p class="kicker">06 · 公开的负结果</p>
+    <h2>负结果也是结果：layer-skip 的公开记录</h2>
+    <p class="lede">Pilot v1 曾按「高余弦相似度 = 可跳过」的直觉直接跳过中间冗余层。Qwen2.5-7B 实测：</p>
+  </div>
+  <div class="honest-table reveal">
+    <table>
+      <thead><tr><th>配置</th><th>perplexity</th><th>变化</th></tr></thead>
+      <tbody>
+        <tr><td>基线（全部层）</td><td>13.81</td><td>—</td></tr>
+        <tr class="bad"><td>跳过中间「冗余」层</td><td>105.67</td><td>+665%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="lede reveal">结论：残差架构里余弦相似度饱和 ≠ 这层没用，「看似冗余」的层仍承担必要的细化计算。
+  完整记录随 commit <span class="mono">1938d60</span> 公开。
+  <b>公开纠错是我们可信度的一部分。</b></p>
+</section>
 
-<div class="cta"><div class="container">
-<h2 class="reveal">让每个模型，在国产 GPU 上算得对。</h2>
-<p class="lead reveal" style="margin:0 auto 34px">开源 · MIT · 欢迎在遇到「输出和 NVIDIA 不一样」时提 issue，我们一起定位。</p>
-<div class="ctas reveal" style="justify-content:center"><a class="btn primary lg" href="https://github.com/cookiesheep/univis">在 GitHub 上查看</a><a class="btn lg" href="play.html">在线体验</a></div>
-</div></div>
+<!-- ============ CONTRACT / FAQ ============ -->
+<section id="contract" class="section">
+  <div class="section-head reveal">
+    <p class="kicker">07 · 精确支持契约</p>
+    <h2>精确支持契约与验证边界</h2>
+  </div>
+  <div class="contract-grid">
+    <div class="reveal">
+      <h3>已实测</h3>
+      <ul class="mono-list">
+        <li>Qwen2.5-0.5B / 3B / 7B-Instruct（bf16）· C500 + L20 双侧</li>
+        <li>TinyLlama-1.1B（Llama 架构）· 双侧</li>
+        <li>Qwen3.6-27B（hybrid）· L20 单侧</li>
+        <li>torch 2.8.0+metax3.3.0.2 / MACA 3.3.0.15 / transformers 4.57.x</li>
+        <li>94 项单元测试 · CPU 环境全量运行</li>
+      </ul>
+    </div>
+    <div class="reveal">
+      <h3>边界声明</h3>
+      <ul class="mono-list">
+        <li>冗余结论不外推到未测模型</li>
+        <li>27B 级 C500 整机对照：计划 2026-10</li>
+        <li>attention / MLP 子层归因：diff 已支持；算子级定位为后续工作</li>
+        <li>早停实验的「保留率」是截断后前缀与原回答一致的比例，不是质量分</li>
+      </ul>
+    </div>
+    <div class="reveal faq">
+      <h3>FAQ</h3>
+      <details><summary>「无卡可审计」是什么意思？</summary>
+        <p>仓库内提交了每次实验的 JSONL 原始数据与环境指纹；本画廊的报告全部由这些数据渲染，任何人在任何电脑上打开即可复核——不需要租 GPU。</p></details>
+      <details><summary>怎么在沐曦卡上复现？</summary>
+        <p>租「曦云 C500 + PyTorch 2.8.0」官方镜像实例，<span class="mono">pip install univis</span>（或克隆仓库），注意不要用公版 torch 覆盖镜像里的 +metax 适配版。完整步骤见仓库 docs/mxmaca/phase-a/README.md。</p></details>
+      <details><summary>接入我的模型要改多少代码？</summary>
+        <p>两行：<span class="mono">tracker = univis.attach(model)</span> 与 <span class="mono">model.generate(..., logits_processor=[tracker.logits_processor(tok)])</span>。架构按 config 自动识别。</p></details>
+    </div>
+  </div>
+</section>
 
-<footer><div class="container"><span>UniVis · 国产 GPU 上的大模型逐层对照 · MIT</span><span><a href="https://github.com/cookiesheep/univis">GitHub</a> · <a href="https://pypi.org/project/univis/">PyPI</a> · <a href="evidence.html">证据库</a></span></div></footer>
+<!-- ============ ACK ============ -->
+<section id="ack" class="section alt">
+  <div class="section-head reveal">
+    <p class="kicker">08 · 真机硬件与生态</p>
+    <h2>扎根国产算力：曦云 C500 上的真机验证</h2>
+  </div>
+  <div class="ack-grid">
+    <div class="ack-card reveal">
+      <h3>MetaX 曦云 C500</h3>
+      <ul class="mono-list">
+        <li>自研 XCORE 架构 GPGPU，面向 AI 训练与推理</li>
+        <li>64GB HBM2e 高带宽显存（本站证据采集自其 16GB sGPU 切分实例）</li>
+        <li>MXMACA 软件栈：mcPyTorch 即 torch +metax 适配版，高度兼容 CUDA 生态用法</li>
+        <li>FP32 / TF32 / FP16 / BF16 / INT8 精度支持</li>
+      </ul>
+    </div>
+    <div class="ack-card reveal">
+      <h3>UniVis 在 C500 上的实测</h3>
+      <ul class="mono-list">
+        <li>零代码修改跑通全链路诊断（阶段 A）</li>
+        <li>0.5B / 3B / 7B 冗余画像与 NVIDIA L20 一致（10 提示词 r = 1.0000）</li>
+        <li>7B bf16（15.3GB）在 16GB sGPU 切分实例上完整运行</li>
+        <li>全流程环境指纹与原始数据随仓库公开，无卡可审计</li>
+      </ul>
+    </div>
+    <div class="ack-card reveal">
+      <h3>平台与生态</h3>
+      <p>真机验证在 <b>Gitee AI（模力方舟）平台</b>按小时租用的曦云 C500 实例上完成——从下单到出第一份国产卡诊断报告不到两小时，即租即用的国产算力体验流畅可靠。</p>
+      <p>下一步，我们期待 UniVis 深度参与 MXMACA 生态：把冗余定位结论对接 FlagGems / mcTriton 算子优化（路线图阶段 C），让「先测量、再优化」的流程在国产栈上完整闭环。</p>
+    </div>
+  </div>
+</section>
+</main>
 
-<script>
-document.getElementById('pip').onclick = function () { navigator.clipboard && navigator.clipboard.writeText('pip install "univis[hf]"'); this.lastChild.textContent = ' 已复制'; };
-var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); count(e.target); } }); }, { threshold: .15 });
-document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
-function count(root) {
-  root.querySelectorAll('[data-count]').forEach(function (el) {
-    var to = +el.dataset.count, dec = +(el.dataset.dec || 0), t0 = performance.now();
-    (function f(t) { var k = Math.min(1, (t - t0) / 1400), e = 1 - Math.pow(1 - k, 3); el.textContent = (to * e).toFixed(dec); if (k < 1) requestAnimationFrame(f); })(t0);
-  });
-}
-function fit(c) { var r = c.getBoundingClientRect(), d = devicePixelRatio || 1; c.width = r.width * d; c.height = r.height * d; var x = c.getContext('2d'); x.setTransform(d, 0, 0, d, 0, 0); return [x, r.width, r.height]; }
-fetch('assets/play_data.json').then(function (r) { return r.json(); }).then(function (D) {
-  var cs = {}; D.cases.forEach(function (c) { cs[c.id] = c; });
-  // hero scanner
-  var f = cs.mlp17, cand = f.cand.block, base = f.base.block, n = cand.length, scan = document.getElementById('scan');
-  var ratio = cand.map(function (v, i) { return v > 1e-3 ? v / base[i] : 1; }), onset = ratio.findIndex(function (v) { return v > 3; });
-  var t0 = performance.now();
-  function lg(v) { return v > 0 ? (Math.log10(v) + 3.2) / 2.4 : 0; }
-  function drawScan(t) {
-    var a = fit(scan), x = a[0], W = a[1], H = a[2], pad = 28, cw = (W - pad * 2) / n, p = ((t - t0) / 4200) % 1.35, head = Math.min(p, 1) * n;
-    x.clearRect(0, 0, W, H);
-    for (var k = 0; k < 5; k++) { var gy = H - 40 - k * (H - 80) / 4; x.strokeStyle = 'rgba(255,255,255,.05)'; x.beginPath(); x.moveTo(pad, gy); x.lineTo(W - pad, gy); x.stroke(); }
-    for (var i = 0; i < n; i++) {
-      var h = Math.max(4, lg(cand[i]) * (H - 80)), hb = Math.max(4, lg(base[i]) * (H - 80)), X = pad + i * cw + cw * .18, w = cw * .64, on = i < head;
-      x.fillStyle = 'rgba(255,255,255,.06)'; x.fillRect(X, H - 40 - hb, w, hb);
-      if (on) { var bad = onset >= 0 && i >= onset; x.fillStyle = bad ? (i === onset ? '#fb923c' : 'rgba(251,146,60,.55)') : 'rgba(74,222,128,.75)'; x.fillRect(X, H - 40 - h, w, h);
-        if (i === onset) { x.shadowColor = '#fb923c'; x.shadowBlur = 24; x.fillRect(X, H - 40 - h, w, h); x.shadowBlur = 0; } }
-    }
-    var sx = pad + Math.min(head, n) * cw; x.strokeStyle = 'rgba(74,222,128,.9)'; x.lineWidth = 2; x.beginPath(); x.moveTo(sx, 18); x.lineTo(sx, H - 40); x.stroke();
-    var gr = x.createLinearGradient(sx - 60, 0, sx, 0); gr.addColorStop(0, 'rgba(74,222,128,0)'); gr.addColorStop(1, 'rgba(74,222,128,.12)'); x.fillStyle = gr; x.fillRect(sx - 60, 18, 60, H - 58);
-    x.fillStyle = '#5f6a64'; x.font = '11px ' + getComputedStyle(document.body).getPropertyValue('--mono');
-    for (var j = 1; j < n; j += 4) x.fillText(String(j - 1), pad + j * cw + cw * .2, H - 20);
-    x.fillText('relative error per block (log) — dim: tolerance baseline', pad, 14);
-    var vd = document.getElementById('vd'), on_ = document.getElementById('on');
-    if (onset >= 0 && head > onset) { vd.textContent = 'DIVERGE'; vd.className = 'verdict div'; on_.innerHTML = 'block ' + (onset - 1) + ' <span style="color:var(--orange);font-size:16px">· MLP · ' + ratio[onset].toFixed(1) + '×</span>'; }
-    else { vd.textContent = 'SCANNING'; vd.className = 'verdict'; on_.textContent = '—'; }
-    requestAnimationFrame(drawScan);
-  }
-  requestAnimationFrame(drawScan);
-  // ratio chart
-  var rc = document.getElementById('ratio'), series = [['c500_0.5B', '#a78bfa'], ['c500_3B', '#fb923c'], ['c500_7B', '#4ade80']], drawn = 0;
-  function drawRatio(prog) {
-    var a = fit(rc), x = a[0], W = a[1], H = a[2], L = 44, R = 12, T = 10, B = 28, ymax = 3.6, Y = function (v) { return T + (H - T - B) * (1 - v / ymax); };
-    x.clearRect(0, 0, W, H); x.font = '12px ' + getComputedStyle(document.body).getPropertyValue('--sans'); x.fillStyle = '#5f6a64';
-    [0, 1, 2, 3].forEach(function (v) { x.strokeStyle = 'rgba(255,255,255,.06)'; x.beginPath(); x.moveTo(L, Y(v)); x.lineTo(W - R, Y(v)); x.stroke(); x.fillText(v + '×', 10, Y(v) + 4); });
-    x.setLineDash([6, 6]); x.strokeStyle = '#ef4444'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(L, Y(3)); x.lineTo(W - R, Y(3)); x.stroke(); x.setLineDash([]);
-    x.fillText('浅层', L, H - 8); x.fillText('深层', W - R - 26, H - 8);
-    series.forEach(function (s) {
-      var c = cs[s[0]], r = c.cand.block.map(function (v, i) { return v > 1e-3 ? v / c.base.block[i] : 1; }).slice(1), m = r.length, upto = Math.floor(m * prog);
-      x.strokeStyle = s[1]; x.lineWidth = 2.4; x.beginPath();
-      for (var i = 0; i <= Math.min(upto, m - 1); i++) { var X = L + (W - L - R) * i / (m - 1); i ? x.lineTo(X, Y(r[i])) : x.moveTo(X, Y(r[i])); }
-      x.stroke();
-    });
-  }
-  new IntersectionObserver(function (es, ob) { if (es[0].isIntersecting) { ob.disconnect(); var s0 = performance.now(); (function a(t) { var p = Math.min(1, (t - s0) / 1800); drawRatio(1 - Math.pow(1 - p, 3)); if (p < 1) requestAnimationFrame(a); else drawn = 1; })(s0); } }, { threshold: .3 }).observe(rc);
-  addEventListener('resize', function () { if (drawn) drawRatio(1); });
-});
-</script>
-</body></html>
+<footer class="footer">
+  <p class="mono">UniVis · MIT License · <a href="https://github.com/cookiesheep/univis" rel="noopener">GitHub</a> ·
+  <a href="https://pypi.org/project/univis/" rel="noopener">PyPI</a> ·
+  <a href="https://github.com/cookiesheep/univis/issues" rel="noopener">Issues</a></p>
+  <p class="dim">所有实验数据与证据以仓库为准；本页热力图与曲线均为真实遥测，未经美化。</p>
+</footer>
+
+<script src="assets/hero_data.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
