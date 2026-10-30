@@ -13,7 +13,7 @@
 [![MetaX C500](https://img.shields.io/badge/MetaX_C500-tested-c2410c.svg)](docs/mxmaca/phase-b/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**[▶ 在线体验（不用 GPU）](https://cookiesheep.github.io/univis/play.html)** · [在线画廊](https://cookiesheep.github.io/univis/) · [30 秒上手](#30-秒上手cpu无需-gpu) · [实测证据](#实测证据) · [支持契约](#精确支持契约与范围声明) · [English](README.en.md)
+**[▶ 在线体验（不用 GPU）](https://cookiesheep.github.io/univis/play.html)** · [🎬 4 分钟介绍视频](https://cookiesheep.github.io/univis/#video) · [📑 项目介绍 PDF](https://cookiesheep.github.io/univis/assets/slides/UniVis.pdf) · [在线画廊](https://cookiesheep.github.io/univis/) · [30 秒上手](#30-秒上手cpu无需-gpu) · [实测证据](#实测证据) · [支持契约](#精确支持契约与范围声明) · [English](README.en.md)
 
 </div>
 
