@@ -8,7 +8,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-91-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-94-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![MetaX C500](https://img.shields.io/badge/MetaX_C500-tested-c2410c.svg)](docs/mxmaca/phase-b/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -28,7 +28,7 @@ UniVis 把比较深入到每一层：两边喂同一段 token，在每一层出�
 | 结论 | 含义 |
 |---|---|
 | **PASS** | 每一层的误差都在「已知正常的同精度实现」的 3 倍以内 |
-| **DIVERGE** | 指出误差**第一次**超出容差的那一层，下一步就去查这一层用到的算子 |
+| **DIVERGE** | 指出误差**第一次**超出容差的那一层，以及是这一层的 attention 还是 MLP，下一步就去查对应的算子 |
 | **UNKNOWN** | 没有提供容差基线，只能排除层间突变，不下「正常」的结论 |
 
 ## 30 秒上手（CPU，无需 GPU）
@@ -44,7 +44,7 @@ univis diff demo
 [3/3] bf16 with a wrong activation kernel in block 17
 
   correct bf16 : top-1 96.2%  (used as the tolerance baseline)
-  broken  bf16 : top-1 96.2%  DIVERGE: error first exceeds the baseline error by 3.3x at block 17 (relative error 4.85e-02).
+  broken  bf16 : top-1 96.2%  DIVERGE: error first exceeds the baseline error by 3.3x at block 17, MLP output (relative error 4.85e-02).
 
 Same output-level agreement, but the layer view pinpoints the block.
 Report: univis_diff_demo.html
@@ -104,6 +104,7 @@ flowchart LR
 - **teacher forcing**：两端喂同一段 token、一次 prefill 跑完，不让模型自己生成。避免了某一步贪心选词不同、后面整段错位的问题，逐位置对齐是严格的。
 - **端侧草图**：在 hook 内部用一个固定的 ±1 随机矩阵把每层输出投影到 64 维。投影是线性的，$P(a)-P(b)=P(a-b)$，所以两台机器各存草图就能估计逐层相对误差，不需要搬运 GB 级的中间张量。投影矩阵由 SHAKE-256 生成，在任何机器上都完全相同。
 - **容差基线**：同精度下「已知正常」的实现与参考之间的误差，就是该精度的正常误差。待检端某一层超过它的 3 倍，就判定从这一层开始分叉。
+- **子层归因**：同时记录每层 attention 与 MLP 的输出草图。在分叉的那一层里，先超出容差的子层就是嫌疑对象；attention 先于 MLP 计算，两者都超出时归给 attention。
 - **无卡可审计**：判定只依赖指纹文件，任何人都可以在 CPU 上复核。
 
 ## 实测证据
@@ -113,7 +114,7 @@ flowchart LR
 | 待检端 | 与 fp32 参考的 top-1 一致率 | UniVis 逐层判定 |
 |---|---|---|
 | bf16，数值栈正确 | 96.2% | —（作为容差基线） |
-| bf16，第 17 层激活函数换错（SiLU → tanh-GELU） | **96.2%** | **DIVERGE @ block 17**（误差为基线的 3.3 倍） |
+| bf16，第 17 层激活函数换错（SiLU → tanh-GELU） | **96.2%** | **DIVERGE @ block 17，MLP 输出**（误差为基线的 3.3 倍） |
 
 复现：`univis diff demo`，或 [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py)。错误是人为注入的，只能说明机制成立；在真实适配问题上的检出能力，要靠 C500 实测来证明（见下方路线图阶段 C）。
 
@@ -149,7 +150,7 @@ flowchart LR
 |---|---|---|
 | MetaX 曦云 C500（16GB sGPU 切分） | torch 2.8.0+metax3.3.0.2、MACA 3.3.0.15、transformers 4.57.3 | ✅ 采集通路与跨硬件对照已验证（[证据](docs/mxmaca/phase-a/README.md)） |
 | NVIDIA L20（48GB） | torch 2.10.0+cu128、transformers 4.57.6 | ✅ 已验证，含 27B 级单侧基线 |
-| CPU | torch 2.x | ✅ 全部 91 项测试、`univis diff demo`、离线报告 |
+| CPU | torch 2.x | ✅ 全部 94 项测试、`univis diff demo`、离线报告 |
 
 | 阶段 | 目标 | 状态 |
 |---|---|---|
@@ -208,7 +209,7 @@ report_path = tracker.finish()                       # 自包含 HTML 报告
 - [在线画廊](https://cookiesheep.github.io/univis/)里有 7 份真机报告（C500 4 份、L20 3 份）和 1 份 CPU diff 报告，浏览器直接打开，不需要 GPU。
 - C500 环境指纹（MXMACA 版本、mx-smi 输出）、原始 JSONL 和复现脚本全部入库：[docs/mxmaca/](docs/mxmaca/phase-a/README.md)。
 - 两例负结果完整公开（见上一节）。
-- 91 项单元测试，GitHub Actions 在 Python 3.10 / 3.12 上全量运行。
+- 94 项单元测试，GitHub Actions 在 Python 3.10 / 3.12 上全量运行。
 
 ## 架构
 
@@ -223,14 +224,14 @@ src/univis/      Python SDK：detection · probe · metrics · transport · trac
 dashboard/       React 18 + TypeScript + ECharts 前端
 docs/mxmaca/     C500 证据链：环境指纹、原始数据、对照脚本
 examples/        可运行示例（含 diff_fault_demo.py）
-tests/           91 项单元测试
+tests/           94 项单元测试
 ```
 
 模块设计见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ## 路线图
 
-- **近期**：C500 上的 `univis diff` 参考指纹（阶段 C）；逐层耗时对照与 FlagGems 算子替换闭环（阶段 C+）；子层（attention / MLP）粒度的分叉定位。
+- **近期**：C500 上的 `univis diff` 参考指纹（阶段 C）；逐层耗时对照与 FlagGems 算子替换闭环（阶段 C+）；对分叉子层保存完整张量，自动生成可交给厂商的最小复现。
 - **中期**：量化前后的逐层对照（W8A8 / W4A16），输出建议保留高精度的层；27B 级 C500 整机验证。
 - **远期**：更多国产算力栈；对接推理框架的数值回归检查。
 

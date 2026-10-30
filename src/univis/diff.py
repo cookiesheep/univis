@@ -63,6 +63,22 @@ def _blocks(model: nn.Module) -> list[nn.Module]:
     return [found[i] for i in sorted(found)]
 
 
+_ATTN_NAMES = ('self_attn', 'attn', 'attention', 'self_attention')
+_MLP_NAMES = ('mlp', 'feed_forward', 'ffn')
+
+
+def _sublayers(blocks: list[nn.Module]) -> list[tuple[nn.Module, nn.Module]] | None:
+    """(attention, mlp) child modules of every block, or None if any block lacks them."""
+    pairs = []
+    for b in blocks:
+        attn = next((getattr(b, n) for n in _ATTN_NAMES if isinstance(getattr(b, n, None), nn.Module)), None)
+        mlp = next((getattr(b, n) for n in _MLP_NAMES if isinstance(getattr(b, n, None), nn.Module)), None)
+        if attn is None or mlp is None:
+            return None
+        pairs.append((attn, mlp))
+    return pairs
+
+
 def _encode(t: torch.Tensor) -> str:
     return base64.b64encode(t.contiguous().numpy().astype('<f4').tobytes()).decode()
 
@@ -98,8 +114,13 @@ def record(
     dim: int = 64,
     seed: int = 0,
     label: str = '',
+    sublayers: bool = True,
 ) -> dict[str, Any]:
-    """Teacher-forced pass over a fixed token set; returns a fingerprint dict."""
+    """Teacher-forced pass over a fixed token set; returns a fingerprint dict.
+
+    With sublayers=True, attention and MLP outputs are sketched too, so a divergence
+    can be attributed to one of them.
+    """
     if token_ids is None:
         if tokenizer is None:
             raise ValueError('Pass a tokenizer or explicit token_ids.')
@@ -107,7 +128,7 @@ def record(
     blocks = _blocks(model)
     device = next(model.parameters()).device
     proj: dict[torch.device, torch.Tensor] = {}
-    step: dict[int, torch.Tensor] = {}
+    step: dict[Any, torch.Tensor] = {}
 
     def sketch(h: torch.Tensor) -> torch.Tensor:
         if h.device not in proj:
@@ -122,8 +143,18 @@ def record(
             step[i] = sketch(output[0] if isinstance(output, tuple) else output)
         return hook
 
+    def make_sub_hook(key: tuple[str, int]):
+        def hook(module, args, output):
+            step[key] = sketch(output[0] if isinstance(output, tuple) else output)
+        return hook
+
     handles = [b.register_forward_hook(make_hook(i), with_kwargs=True) for i, b in enumerate(blocks)]
+    subs = _sublayers(blocks) if sublayers else None
+    for i, (attn, mlp) in enumerate(subs or []):
+        handles.append(attn.register_forward_hook(make_sub_hook(('attn', i))))
+        handles.append(mlp.register_forward_hook(make_sub_hook(('mlp', i))))
     layers: list[list[torch.Tensor]] = [[] for _ in range(len(blocks) + 1)]
+    sub_chunks: dict[str, list[list[torch.Tensor]]] = {k: [[] for _ in blocks] for k in ('attn', 'mlp')}
     top1: list[list[int]] = []
     try:
         for ids in token_ids:
@@ -133,11 +164,16 @@ def record(
             batch = torch.stack([step[i] for i in range(-1, len(blocks))]).cpu()
             for i in range(len(blocks) + 1):
                 layers[i].append(batch[i])
+            if subs:
+                for k in sub_chunks:
+                    sub = torch.stack([step[(k, i)] for i in range(len(blocks))]).cpu()
+                    for i in range(len(blocks)):
+                        sub_chunks[k][i].append(sub[i])
     finally:
         for h in handles:
             h.remove()
     name = getattr(getattr(model, 'config', None), '_name_or_path', '') or type(model).__name__
-    return {
+    fp = {
         'format': FORMAT,
         'label': label,
         'model': name,
@@ -149,6 +185,9 @@ def record(
         'top1': top1,
         'layers': [_encode(torch.cat(chunks)) for chunks in layers],
     }
+    if subs:
+        fp['sublayers'] = {k: [_encode(torch.cat(c)) for c in v] for k, v in sub_chunks.items()}
+    return fp
 
 
 def save(fp: dict[str, Any], path: str | Path) -> Path:
@@ -173,18 +212,40 @@ def _check_pair(a: dict, b: dict) -> None:
                              '(use --tokens-from on the second machine).')
 
 
+def _rel_cos(a_s: str, b_s: str, dim: int) -> tuple[float, float]:
+    a, b = _decode(a_s, dim), _decode(b_s, dim)
+    na = np.linalg.norm(a, axis=1)
+    nb = np.linalg.norm(b, axis=1)
+    safe = na > 1e-12
+    rel = float(np.mean(np.linalg.norm(b - a, axis=1)[safe] / na[safe]))
+    cos = float(np.mean((a * b).sum(1)[safe] / (na[safe] * np.maximum(nb[safe], 1e-12))))
+    return rel, cos
+
+
 def layer_errors(ref: dict, cand: dict) -> tuple[list[float], list[float]]:
     """Per-layer mean relative L2 error and cosine (index 0 = embedding output)."""
     _check_pair(ref, cand)
-    rel, cos = [], []
-    for a_s, b_s in zip(ref['layers'], cand['layers']):
-        a, b = _decode(a_s, ref['dim']), _decode(b_s, ref['dim'])
-        na = np.linalg.norm(a, axis=1)
-        nb = np.linalg.norm(b, axis=1)
-        safe = na > 1e-12
-        rel.append(float(np.mean(np.linalg.norm(b - a, axis=1)[safe] / na[safe])))
-        cos.append(float(np.mean((a * b).sum(1)[safe] / (na[safe] * np.maximum(nb[safe], 1e-12)))))
-    return rel, cos
+    pairs = [_rel_cos(a, b, ref['dim']) for a, b in zip(ref['layers'], cand['layers'])]
+    return [p[0] for p in pairs], [p[1] for p in pairs]
+
+
+def _attribute(ref: dict, cand: dict, baseline: dict | None, block: int) -> dict[str, float] | None:
+    """Error ratio of the attention and MLP outputs at the onset block.
+
+    Against the baseline when given, otherwise against the same sublayer one block earlier.
+    """
+    sides = [ref, cand] + ([baseline] if baseline is not None else [])
+    if not all('sublayers' in fp for fp in sides) or (baseline is None and block < 1):
+        return None
+    out = {}
+    for k in ('attn', 'mlp'):
+        err = _rel_cos(ref['sublayers'][k][block], cand['sublayers'][k][block], ref['dim'])[0]
+        if baseline is not None:
+            tol = _rel_cos(ref['sublayers'][k][block], baseline['sublayers'][k][block], ref['dim'])[0]
+        else:
+            tol = _rel_cos(ref['sublayers'][k][block - 1], cand['sublayers'][k][block - 1], ref['dim'])[0]
+        out[k] = err / max(tol, MIN_ERROR / NOISE_RATIO) if err > MIN_ERROR else 1.0
+    return out
 
 
 def _top1_agree(ref: dict, cand: dict) -> float:
@@ -222,6 +283,14 @@ def compare(ref: dict, cand: dict, baseline: dict | None = None) -> dict[str, An
         result.update(ratio=growth, method='jump')
         result['verdict'] = 'DIVERGE' if onset is not None else 'UNKNOWN'
     result['onset'] = onset
+    result['onset_sublayer'] = None
+    if onset is not None and onset >= 1:
+        ratios = _attribute(ref, cand, baseline, onset - 1)
+        if ratios:
+            result['sublayer_ratio'] = ratios
+            # attention runs first inside a block, so it wins when both are out of tolerance
+            hit = [k for k in ('attn', 'mlp') if ratios[k] > NOISE_RATIO]
+            result['onset_sublayer'] = hit[0] if hit else None
     result['summary'] = _summary(result)
     return result
 
@@ -237,7 +306,8 @@ def _summary(r: dict) -> str:
     if r['verdict'] == 'DIVERGE':
         i = r['onset']
         kind = 'the baseline error' if r['method'] == 'baseline' else 'the previous layer'
-        return (f"DIVERGE: error first exceeds {kind} by {r['ratio'][i]:.1f}x at {_layer_name(i)} "
+        where = {'attn': ', attention output', 'mlp': ', MLP output'}.get(r.get('onset_sublayer'), '')
+        return (f"DIVERGE: error first exceeds {kind} by {r['ratio'][i]:.1f}x at {_layer_name(i)}{where} "
                 f"(relative error {r['rel_error'][i]:.2e}).")
     return ('UNKNOWN: no abrupt jump from block 1 on, but without a known-good baseline '
             'the error level (and the embedding / first block) cannot be judged.')
@@ -304,6 +374,7 @@ footer{{color:#6b7280;font-size:12px;margin-top:24px}}
 <div class="card verdict"><span class="pill">{result['verdict']}</span> <span class="muted">{tag}</span>
 <div class="big">{result['summary']}</div>
 <div class="kpis"><div class="kpi"><span class="muted">分叉起点 onset</span><b>{names[result['onset']] if result['onset'] is not None else '—'}</b></div>
+<div class="kpi"><span class="muted">子层 sublayer</span><b>{ {'attn': 'attention', 'mlp': 'MLP'}.get(result.get('onset_sublayer'), '—') }</b></div>
 <div class="kpi"><span class="muted">末层相对误差 last-layer error</span><b>{result['rel_error'][-1]:.2e}</b></div>
 <div class="kpi"><span class="muted">top-1 一致率 agreement</span><b>{agree}</b></div></div></div>
 <div class="card"><div class="muted">逐层相对误差（对数轴）· per-layer relative error vs reference</div><div id="err" class="chart"></div></div>

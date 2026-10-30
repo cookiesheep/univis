@@ -8,7 +8,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/univis.svg)](https://pypi.org/project/univis/)
 [![CI](https://github.com/cookiesheep/univis/actions/workflows/ci.yml/badge.svg)](https://github.com/cookiesheep/univis/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-91-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-94-brightgreen.svg)](tests)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![MetaX C500](https://img.shields.io/badge/MetaX_C500-tested-c2410c.svg)](docs/mxmaca/phase-b/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -28,7 +28,7 @@ UniVis compares layer by layer. Both sides consume the same tokens, each layer's
 | Verdict | Meaning |
 |---|---|
 | **PASS** | Every layer stays within 3× the error of a known-good implementation in the same precision |
-| **DIVERGE** | Names the **first** layer whose error leaves the tolerance; look at the kernels that layer uses |
+| **DIVERGE** | Names the **first** layer whose error leaves the tolerance, and whether its attention or MLP output is to blame; look at those kernels |
 | **UNKNOWN** | No tolerance baseline was given; abrupt jumps are ruled out, but "normal" is not claimed |
 
 ## 30-second start (CPU, no GPU)
@@ -44,7 +44,7 @@ univis diff demo
 [3/3] bf16 with a wrong activation kernel in block 17
 
   correct bf16 : top-1 96.2%  (used as the tolerance baseline)
-  broken  bf16 : top-1 96.2%  DIVERGE: error first exceeds the baseline error by 3.3x at block 17 (relative error 4.85e-02).
+  broken  bf16 : top-1 96.2%  DIVERGE: error first exceeds the baseline error by 3.3x at block 17, MLP output (relative error 4.85e-02).
 
 Same output-level agreement, but the layer view pinpoints the block.
 Report: univis_diff_demo.html
@@ -104,6 +104,7 @@ flowchart LR
 - **Teacher forcing**: both sides prefill the same tokens in one pass instead of generating, so one different greedy pick cannot shift everything after it. Positions align exactly.
 - **On-device sketches**: inside the hook, each block output is projected to 64 dims by a fixed ±1 random matrix. The projection is linear, $P(a)-P(b)=P(a-b)$, so sketches stored on two machines are enough to estimate per-layer relative error without moving GB-sized activations. The matrix comes from SHAKE-256 and is identical on every machine.
 - **Tolerance baseline**: the error of a known-good same-precision implementation against the reference is that precision's normal error. A candidate layer above 3× of it marks the divergence onset.
+- **Sublayer attribution**: attention and MLP outputs are sketched too. Within the onset block, the sublayer that leaves tolerance first is the suspect; attention runs before the MLP, so it is blamed when both do.
 - **Auditable without a GPU**: the verdict depends only on the fingerprint files, which anyone can re-check on a CPU.
 
 ## Evidence
@@ -113,7 +114,7 @@ flowchart LR
 | Candidate | Top-1 agreement with fp32 | UniVis layer verdict |
 |---|---|---|
 | bf16, correct stack | 96.2% | — (used as the tolerance baseline) |
-| bf16, block 17 activation swapped (SiLU → tanh-GELU) | **96.2%** | **DIVERGE @ block 17** (3.3× the baseline error) |
+| bf16, block 17 activation swapped (SiLU → tanh-GELU) | **96.2%** | **DIVERGE @ block 17, MLP output** (3.3× the baseline error) |
 
 Reproduce with `univis diff demo` or [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py). The fault is injected, so this shows the mechanism works; detection on real porting issues has to be shown on C500 (stage C below).
 
@@ -149,7 +150,7 @@ The same C500 session also drove a fix in UniVis itself: hook overhead fell from
 |---|---|---|
 | MetaX C500 (16GB sGPU slice) | torch 2.8.0+metax3.3.0.2, MACA 3.3.0.15, transformers 4.57.3 | ✅ collection path and cross-hardware comparison ([evidence](docs/mxmaca/phase-a/README.md)) |
 | NVIDIA L20 (48GB) | torch 2.10.0+cu128, transformers 4.57.6 | ✅ incl. a 27B-class one-sided baseline |
-| CPU | torch 2.x | ✅ all 91 tests, `univis diff demo`, offline reports |
+| CPU | torch 2.x | ✅ all 94 tests, `univis diff demo`, offline reports |
 
 | Stage | Goal | Status |
 |---|---|---|
@@ -208,7 +209,7 @@ CLI: `univis report` (JSONL → HTML), `univis compare` (multi-model), `univis s
 - The [gallery](https://cookiesheep.github.io/univis/) has 7 real-hardware reports (4 on C500, 3 on L20) and 1 CPU diff report, viewable in a browser without a GPU.
 - C500 environment fingerprints (MXMACA versions, mx-smi output), raw JSONL, and reproduction scripts are in the repo: [docs/mxmaca/](docs/mxmaca/phase-a/README.md).
 - Both negative results are published in full (previous section).
-- 91 unit tests run on GitHub Actions with Python 3.10 / 3.12.
+- 94 unit tests run on GitHub Actions with Python 3.10 / 3.12.
 
 ## Architecture
 
@@ -223,14 +224,14 @@ src/univis/      Python SDK: detection · probe · metrics · transport · track
 dashboard/       React 18 + TypeScript + ECharts frontend
 docs/mxmaca/     C500 evidence: environment fingerprints, raw data, comparison scripts
 examples/        runnable examples (incl. diff_fault_demo.py)
-tests/           91 unit tests
+tests/           94 unit tests
 ```
 
 Module design: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Roadmap
 
-- **Near term**: `univis diff` reference fingerprints on C500 (stage C); per-layer latency and the FlagGems kernel-swap loop (stage C+); divergence localization at sub-layer (attention / MLP) granularity.
+- **Near term**: `univis diff` reference fingerprints on C500 (stage C); per-layer latency and the FlagGems kernel-swap loop (stage C+); full-tensor dumps of the diverging sublayer to produce a minimal repro for vendors.
 - **Mid term**: before/after-quantization comparison (W8A8 / W4A16) that suggests which layers to keep in higher precision; 27B-class validation on a full C500.
 - **Long term**: more domestic compute stacks; numeric regression checks wired into inference frameworks.
 

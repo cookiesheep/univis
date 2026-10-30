@@ -84,3 +84,35 @@ def test_render_html(tmp_path):
     res = diff.compare(ref, diff.record(_faulty(_model(), 2), token_ids=TOKENS))
     html = diff.render_html(res, tmp_path / 'r.html').read_text(encoding='utf-8')
     assert 'DIVERGE' in html and 'echarts' in html
+
+
+def _faulty_sublayer(model: torch.nn.Module, block: int, name: str, scale: float = 0.5) -> torch.nn.Module:
+    """Perturb one sublayer (self_attn or mlp) output of a block."""
+    gen = torch.Generator().manual_seed(2)
+
+    def hook(module, args, output):
+        h = output[0] if isinstance(output, tuple) else output
+        h = h + scale * h.abs().mean() * torch.randn(h.shape, generator=gen).to(h.dtype)
+        return (h, *output[1:]) if isinstance(output, tuple) else h
+
+    getattr(model.model.layers[block], name).register_forward_hook(hook)
+    return model
+
+
+# random-init MLP outputs are tiny next to the residual stream, hence the larger scale
+@pytest.mark.parametrize('name,expected,scale', [('mlp', 'mlp', 50.0), ('self_attn', 'attn', 0.5)])
+def test_onset_sublayer_attribution(name, expected, scale):
+    ref = diff.record(_model(), token_ids=TOKENS)
+    good = diff.record(_model().to(torch.bfloat16), token_ids=TOKENS)
+    bad = diff.record(_faulty_sublayer(_model(), 3, name, scale).to(torch.bfloat16), token_ids=TOKENS)
+    res = diff.compare(ref, bad, baseline=good)
+    assert res['verdict'] == 'DIVERGE' and res['onset'] == 4
+    assert res['onset_sublayer'] == expected
+    assert ('MLP' if expected == 'mlp' else 'attention') in res['summary']
+
+
+def test_sublayers_optional():
+    fp = diff.record(_model(), token_ids=TOKENS, sublayers=False)
+    assert 'sublayers' not in fp
+    res = diff.compare(fp, diff.record(_faulty(_model(), 2), token_ids=TOKENS, sublayers=False))
+    assert res['onset_sublayer'] is None

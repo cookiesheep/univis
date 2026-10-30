@@ -23,6 +23,7 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     r.add_argument('--tokens-from', default=None, help='Reuse the exact token ids of another fingerprint')
     r.add_argument('--dim', type=int, default=64, help='Sketch dimension (default: 64)')
     r.add_argument('--label', default='', help='Free-text label, e.g. "C500 MXMACA 3.3"')
+    r.add_argument('--no-sublayers', action='store_true', help='Skip attention/MLP sketches (smaller files)')
 
     d = dsub.add_parser('demo', help='CPU demo: tell a simulated wrong kernel apart from bf16 noise')
     d.add_argument('--model', default='HuggingFaceTB/SmolLM2-135M', help='Llama-style HF model')
@@ -87,7 +88,8 @@ def run(args: argparse.Namespace) -> None:
         model = _load(args.model, args.dtype, device)
         token_ids = diff.load(args.tokens_from)['token_ids'] if args.tokens_from else None
         tok = None if token_ids else AutoTokenizer.from_pretrained(args.model)
-        fp = diff.record(model, tok, token_ids=token_ids, dim=args.dim, label=args.label)
+        fp = diff.record(model, tok, token_ids=token_ids, dim=args.dim, label=args.label,
+                         sublayers=not args.no_sublayers)
         diff.save(fp, args.output)
         print(f"Recorded {fp['num_layers']} blocks x {sum(map(len, fp['token_ids']))} positions -> {args.output}")
         return

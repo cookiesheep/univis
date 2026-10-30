@@ -18,7 +18,7 @@ import torch.nn as nn
 from .tracker import Tracker, create_tracker
 from .pilot import Pilot, PilotPolicy
 
-__version__ = '0.7.0'
+__version__ = '0.7.1'
 
 
 def attach(
