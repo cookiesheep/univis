@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UniVis · Transformer 推理冗余诊断 — 真机证据画廊</title>
-<meta name="description" content="UniVis：零侵入诊断大模型推理时哪些层在真正计算、哪些在冗余。沐曦曦云 C500 与 NVIDIA L20 真机证据，无卡可审计。">
+<title>UniVis · 国产 GPU 上的大模型逐层对照 — 真机证据画廊</title>
+<meta name="description" content="模型搬到沐曦曦云 C500 上，算得对不对？如果不对，从哪一层开始不对？UniVis 是开源（MIT）的逐层对照工具，C500 真机三组规模全部通过，证据随仓库公开，无卡可审计。">
+<meta property="og:title" content="UniVis · 国产 GPU 上的大模型逐层对照">
+<meta property="og:description" content="正确版本和写错一层的版本，最终一致率都是 96.2%。UniVis 逐层对照，指出从哪一层开始不对。">
 <meta name="color-scheme" content="dark light">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2308090d'/%3E%3Ccircle cx='10' cy='20' r='4' fill='%237e03a8'/%3E%3Ccircle cx='19' cy='13' r='4' fill='%23cc4778'/%3E%3Ccircle cx='24' cy='22' r='3' fill='%23f0f921'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -71,10 +73,9 @@
     </div>
     <dl class="hero-stats reveal">
       <div><dt>单个错误算子</dt><dd>定位到 block 17 <span class="dim">(输出一致率不变)</span></dd></div>
-      <div><dt>跨硬件画像一致性</dt><dd>r = 1.0000</dd></div>
-      <div><dt>验证规模</dt><dd>0.5B → 27B <span class="dim">(54×)</span></dd></div>
-      <div><dt>单元测试</dt><dd>94 · CI 全绿</dd></div>
-      
+      <div><dt>沐曦 C500 · 三组规模</dt><dd>全部 PASS</dd></div>
+      <div><dt>沐曦 flash-attn</dt><dd>PASS · 快约 1.47×</dd></div>
+      <div><dt>发现一个默认设置</dt><dd>约 290× 偏差</dd></div>
     </dl>
   </div>
 </header>
@@ -112,7 +113,18 @@
   <a class="bigfig reveal" href="assets/reports/diff_cpu_demo.html" target="_blank" rel="noopener" style="display:block;max-height:640px;overflow:hidden">
     <img src="assets/img/diff-report.png" alt="univis diff 报告：误差从 block 17 开始超出基线" loading="lazy">
   </a>
-  <p class="footnote reveal">错误为人为注入，只说明机制成立；在真实适配问题上的检出能力，将在 C500 上用 NVIDIA 参考指纹实测（路线图阶段 C）。点击图片打开完整的交互报告。</p>
+  <p class="footnote reveal">错误为人为注入，只说明机制成立；下面是 C500 真机对照的结果。目前所测范围内全部通过，还没有在真机上遇到真实的算子分叉。点击图片打开完整的交互报告。</p>
+  <div class="rtable reveal">
+    <table>
+      <thead><tr><th>沐曦曦云 C500 对 RTX 5090 · 模型与输入</th><th>C500 注意力实现</th><th>UniVis 逐层判定（每层最大倍数，判定线 3 倍）</th></tr></thead>
+      <tbody>
+        <tr><td>Qwen2.5-0.5B / 3B / 7B · 8 条提示词</td><td>sdpa</td><td>全部 PASS（1.05 / 0.93 / 1.35）</td></tr>
+        <tr><td>Qwen2.5-0.5B / 3B · 3 段 × 1024 token</td><td>sdpa</td><td>PASS（≤ 1.0）</td></tr>
+        <tr><td>Qwen2.5-0.5B / 3B · 3 段 × 1024 token</td><td>沐曦 flash-attn 2.6.3+metax</td><td>PASS（≤ 1.0）；3B 前向 109 → 74 ms，快约 1.47 倍</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="footnote reveal">参考为 RTX 5090 fp32，容差为 RTX 5090 bf16，两端输入逐 token 相同；同一台 C500 重复运行，逐层指纹逐位一致。另外发现：官方镜像默认 <span class="mono">TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1</span>，“fp32”实际按 TF32 计算，误差约为严格 fp32 的 290 倍；关闭后 C500 与 NVIDIA 的 fp32 只差 1e-5 量级。一次 3.00× 的报警，经阳性对照确认是容差基线用了不同的注意力实现，换成同一实现后为 1.02×。结论只覆盖所测模型、输入与软件栈，不外推。完整数据：<a href="https://github.com/cookiesheep/univis/tree/main/docs/mxmaca/stage-c" rel="noopener">docs/mxmaca/stage-c</a>。</p>
 </section>
 
 <!-- ============ GALLERY ============ -->
@@ -132,7 +144,7 @@
 <!-- ============ CROSS-HW ============ -->
 <section id="crosshw" class="section alt">
   <div class="section-head reveal">
-    <p class="kicker">02 · 跨硬件一致性</p>
+    <p class="kicker">02 · 早期工作 · 跨硬件一致性</p>
     <h2>同一模型，两种硬件，几乎相同的冗余画像</h2>
     <p class="lede">同模型、同提示词、同解码协议（greedy · bf16 · 50 token），分别在沐曦 C500 与 NVIDIA L20 上诊断。
     10 条多样化提示词协议下，Qwen2.5 三个规模的层级冗余画像 Pearson r = 1.0000——
@@ -162,7 +174,7 @@
 <!-- ============ SCALE ============ -->
 <section id="scale" class="section">
   <div class="section-head reveal">
-    <p class="kicker">03 · 跨规模实证</p>
+    <p class="kicker">03 · 早期工作 · 跨规模实证</p>
     <h2>中间层冗余最显著——0.5B 到 27B 稳定成立</h2>
     <p class="lede">参数跨度约 54 倍（Qwen2.5-0.5B / 3B / 7B + Qwen3.6-27B hybrid）。层深度归一化后，
     四个模型的中间段余弦相似度都明显高于浅层与深层：<b>冗余集中在模型的「腰上」</b>。</p>
@@ -178,7 +190,7 @@
     <p class="kicker">04 · MXMACA 适配实录</p>
     <h2>MXMACA 适配实录：扎根 C500 的验证之路</h2>
     <p class="lede">验证在 Gitee AI（模力方舟）平台的曦云 C500 实例上完成：从零代码修改跑通指标采集，
-    到跨硬件实证与工具自身的性能修复，每一步都留有可复核的原始数据与环境指纹。</p>
+    到跨硬件实证、工具自身的性能修复，再到逐层对照真机验证，每一步都留有可复核的原始数据与环境指纹。</p>
   </div>
   <ol class="tl" id="tl">
     <li class="reveal"><span class="tl-time mono">01</span><div><h3>环境就位</h3><p>曦云 C500 实例，官方 MACA 3.x + PyTorch 2.8.0 镜像。环境指纹三件套（mx-smi / torch 版本 / 系统信息）先行留档。</p></div></li>
@@ -189,6 +201,7 @@
     <li class="reveal"><span class="tl-time mono">06</span><div><h3>窗口判据：从负结果到可用功能</h3><p>实现 entropy_window（连续 N 步低熵才退出）。24 提示词复测得到单调可控权衡曲线——负结果公开入库，修复成为 v0.6.0 功能。</p></div></li>
     <li class="reveal"><span class="tl-time mono">07</span><div><h3>工具自身的性能修复</h3><p>实测发现 hook 采集在多层数模型上拖慢生成 4–5 倍。重构为设备端张量化 + 每步单次批量回传：+400% → 约 +55%，指标数值逐位不变（MAE = 0.0000）。</p></div></li>
     <li class="reveal"><span class="tl-time mono">08</span><div><h3>实时演示与版本发布</h3><p>Qwen2.5-7B 经 SSH 隧道实时驱动 Dashboard，热力图逐 token 生长——本站 hero 即其截图数据。随后多提示词 r = 1.0000、TinyLlama 跨架构、v0.6.0 发布。</p></div></li>
+    <li class="reveal"><span class="tl-time mono">09</span><div><h3>阶段 C · 逐层对照真机验证</h3><p>C500 对 RTX 5090，Qwen2.5 0.5B / 3B / 7B 逐层全部 PASS，长序列与沐曦 flash-attn 同样通过；发现镜像默认按 TF32 计算 fp32。v0.7.1 发布。</p></div></li>
   </ol>
 </section>
 
@@ -241,6 +254,7 @@
     <div class="reveal">
       <h3>已实测</h3>
       <ul class="mono-list">
+        <li>univis diff · C500 bf16 对 RTX 5090：Qwen2.5-0.5B / 3B / 7B 全部 PASS</li>
         <li>Qwen2.5-0.5B / 3B / 7B-Instruct（bf16）· C500 + L20 双侧</li>
         <li>TinyLlama-1.1B（Llama 架构）· 双侧</li>
         <li>Qwen3.6-27B（hybrid）· L20 单侧</li>
@@ -252,7 +266,9 @@
       <h3>边界声明</h3>
       <ul class="mono-list">
         <li>冗余结论不外推到未测模型</li>
-        <li>27B 级 C500 整机对照：计划 2026-10</li>
+        <li>PASS 只覆盖所测模型、提示词与软件栈，不是「适配合格」认证</li>
+        <li>attention 只偏 3% 时测不出（1.13×）；第 21 层偏 20% 为 2.84×，略低于 3× 判定线</li>
+        <li>27B 级 C500 整机对照：尚未完成</li>
         <li>attention / MLP 子层归因：diff 已支持；算子级定位为后续工作</li>
         <li>早停实验的「保留率」是截断后前缀与原回答一致的比例，不是质量分</li>
       </ul>
@@ -262,9 +278,9 @@
       <details><summary>「无卡可审计」是什么意思？</summary>
         <p>仓库内提交了每次实验的 JSONL 原始数据与环境指纹；本画廊的报告全部由这些数据渲染，任何人在任何电脑上打开即可复核——不需要租 GPU。</p></details>
       <details><summary>怎么在沐曦卡上复现？</summary>
-        <p>租「曦云 C500 + PyTorch 2.8.0」官方镜像实例，<span class="mono">pip install univis</span>（或克隆仓库），注意不要用公版 torch 覆盖镜像里的 +metax 适配版。完整步骤见仓库 docs/mxmaca/phase-a/README.md。</p></details>
+        <p>租「曦云 C500 + PyTorch 2.8.0」官方镜像实例，<span class="mono">pip install --no-deps univis</span>（或克隆仓库），不要用公版 torch 覆盖镜像里的 +metax 适配版。录制脚本与步骤见仓库 docs/mxmaca/stage-c/。</p></details>
       <details><summary>接入我的模型要改多少代码？</summary>
-        <p>两行：<span class="mono">tracker = univis.attach(model)</span> 与 <span class="mono">model.generate(..., logits_processor=[tracker.logits_processor(tok)])</span>。架构按 config 自动识别。</p></details>
+        <p>逐层对照不用改代码：两端各运行 <span class="mono">univis diff record</span>，再用 <span class="mono">univis diff compare</span> 比对。冗余画像要两行：<span class="mono">tracker = univis.attach(model)</span> 与 <span class="mono">model.generate(..., logits_processor=[tracker.logits_processor(tok)])</span>。架构按 config 自动识别。</p></details>
     </div>
   </div>
 </section>
@@ -288,6 +304,8 @@
     <div class="ack-card reveal">
       <h3>UniVis 在 C500 上的实测</h3>
       <ul class="mono-list">
+        <li>逐层对照 RTX 5090：0.5B / 3B / 7B 全部 PASS（阶段 C）</li>
+        <li>沐曦 flash-attn：PASS，3B 前向快约 1.47 倍</li>
         <li>零代码修改跑通全链路诊断（阶段 A）</li>
         <li>0.5B / 3B / 7B 冗余画像与 NVIDIA L20 一致（10 提示词 r = 1.0000）</li>
         <li>7B bf16（15.3GB）在 16GB sGPU 切分实例上完整运行</li>
@@ -297,7 +315,7 @@
     <div class="ack-card reveal">
       <h3>平台与生态</h3>
       <p>真机验证在 <b>Gitee AI（模力方舟）平台</b>按小时租用的曦云 C500 实例上完成——从下单到出第一份国产卡诊断报告不到两小时，即租即用的国产算力体验流畅可靠。</p>
-      <p>下一步，我们期待 UniVis 深度参与 MXMACA 生态：把冗余定位结论对接 FlagGems / mcTriton 算子优化（路线图阶段 C），让「先测量、再优化」的流程在国产栈上完整闭环。</p>
+      <p>下一步（计划）：逐层耗时对照，再用 univis diff 验证 FlagGems / mcTriton 算子替换后精度不变（路线图阶段 C+），让「先测量、再优化」的流程在国产栈上闭环。</p>
     </div>
   </div>
 </section>

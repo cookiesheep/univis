@@ -116,7 +116,7 @@ flowchart LR
 | bf16，数值栈正确 | 96.2% | —（作为容差基线） |
 | bf16，第 17 层激活函数换错（SiLU → tanh-GELU） | **96.2%** | **DIVERGE @ block 17，MLP 输出**（误差为基线的 3.3 倍） |
 
-复现：`univis diff demo`，或 [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py)。错误是人为注入的，只能说明机制成立；在真实适配问题上的检出能力，要靠 C500 实测来证明（见下方路线图阶段 C）。
+复现：`univis diff demo`，或 [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py)。错误是人为注入的，只能说明机制成立；C500 真机对照见下一节。目前所测范围内全部通过，还没有在真机上遇到真实的算子分叉。
 
 ### 2. 沐曦曦云 C500 真机：逐层对照
 
@@ -161,7 +161,7 @@ flowchart LR
 <sub>沐曦 C500（品红）与 NVIDIA L20（青）的逐层画像几乎重合。</sub>
 </div>
 
-这说明在这些模型上，MXMACA 栈的逐层计算与 NVIDIA 栈在统计意义上一致。层平均统计量的粒度较粗，逐位置的 `univis diff` 对照是阶段 C 的内容。方法学、原始数据和环境指纹见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md)。
+这说明在这些模型上，MXMACA 栈的逐层计算与 NVIDIA 栈在统计意义上一致。层平均统计量的粒度较粗，逐位置的 `univis diff` 对照见上面第 2 节。方法学、原始数据和环境指纹见 [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md)。
 
 同一轮 C500 实测还推动了工具自身的一次修复：hook 采集开销从旧实现的 +400~486%（逐层设备同步被放大）降到 +55% 量级（每步一次批量回传），指标逐位不变。
 
@@ -253,7 +253,7 @@ tests/           94 项单元测试
 
 ## 路线图
 
-- **近期**：C500 上的 `univis diff` 参考指纹（阶段 C）；逐层耗时对照与 FlagGems 算子替换闭环（阶段 C+）；对分叉子层保存完整张量，自动生成可交给厂商的最小复现。
+- **近期**：逐层耗时对照与 FlagGems 算子替换闭环（阶段 C+）；对分叉子层保存完整张量，自动生成可交给厂商的最小复现。
 - **中期**：量化前后的逐层对照（W8A8 / W4A16），输出建议保留高精度的层；27B 级 C500 整机验证。
 - **远期**：更多国产算力栈；对接推理框架的数值回归检查。
 

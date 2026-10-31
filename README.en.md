@@ -116,7 +116,7 @@ flowchart LR
 | bf16, correct stack | 96.2% | — (used as the tolerance baseline) |
 | bf16, block 17 activation swapped (SiLU → tanh-GELU) | **96.2%** | **DIVERGE @ block 17, MLP output** (3.3× the baseline error) |
 
-Reproduce with `univis diff demo` or [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py). The fault is injected, so this shows the mechanism works; detection on real porting issues has to be shown on C500 (stage C below).
+Reproduce with `univis diff demo` or [`examples/diff_fault_demo.py`](examples/diff_fault_demo.py). The fault is injected, so this only shows the mechanism works. C500 results are in the next section: everything tested passes, and we have not yet met a real kernel divergence on hardware.
 
 ### 2. MetaX C500, layer by layer
 
@@ -161,7 +161,7 @@ Same model, prompts, and decoding protocol (greedy / bf16) on a MetaX C500 (16GB
 <sub>MetaX C500 (magenta) and NVIDIA L20 (cyan) per-layer profiles nearly coincide.</sub>
 </div>
 
-On these models the MXMACA stack agrees with the NVIDIA stack at the level of per-layer statistics. Layer-averaged statistics are coarse; per-position `univis diff` on C500 is stage C. Methodology, raw data, and environment fingerprints: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md).
+On these models the MXMACA stack agrees with the NVIDIA stack at the level of per-layer statistics. Layer-averaged statistics are coarse; for per-position `univis diff` results, see section 2 above. Methodology, raw data, and environment fingerprints: [docs/mxmaca/phase-b/](docs/mxmaca/phase-b/README.md).
 
 The same C500 session also drove a fix in UniVis itself: hook overhead fell from +400–486% (per-layer device syncs amplified) to about +55% (one batched transfer per step), with bit-identical metrics.
 
@@ -253,7 +253,7 @@ Module design: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Roadmap
 
-- **Near term**: `univis diff` reference fingerprints on C500 (stage C); per-layer latency and the FlagGems kernel-swap loop (stage C+); full-tensor dumps of the diverging sublayer to produce a minimal repro for vendors.
+- **Near term**: per-layer latency and the FlagGems kernel-swap loop (stage C+); full-tensor dumps of the diverging sublayer to produce a minimal repro for vendors.
 - **Mid term**: before/after-quantization comparison (W8A8 / W4A16) that suggests which layers to keep in higher precision; 27B-class validation on a full C500.
 - **Long term**: more domestic compute stacks; numeric regression checks wired into inference frameworks.
 

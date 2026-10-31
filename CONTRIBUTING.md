@@ -8,13 +8,13 @@ Thanks for your interest in improving UniVis! The project is young and there are
 - **Architecture adapters** — extend `detection.py` to auto-detect new Transformer families, or add per-architecture hook targets.
 - **Dashboard views** — the React + ECharts frontend welcomes new visualizations (e.g. attention/FFN drill-downs).
 - **Benchmarks / model coverage** — run UniVis on more models and share redundancy reports.
-- **Domestic-accelerator testing** — reports of how hooks and metrics behave on domestic GPUs (MXMACA stack, etc.) are especially valuable.
+- **Domestic-accelerator testing** — `univis diff` fingerprints recorded on your own hardware (MXMACA stack, etc.), especially any run that disagrees with a reference, are the most valuable contribution.
 
 ## Development setup
 
 ```bash
 pip install -e ".[dev]"          # SDK + dev tools
-python -m pytest tests/ -v       # 80 unit tests
+python -m pytest tests/ -v       # 94 unit tests
 cd dashboard && npm install && npm run dev   # dashboard
 ```
 
