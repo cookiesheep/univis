@@ -53,7 +53,7 @@ Report: univis_diff_demo.html
 The first run downloads SmolLM2-135M (about 270 MB); with the model cached it takes about 40 s on the CPU of an ordinary Windows PC. It runs the same model three times (fp32 reference, correct bf16, bf16 with block 17's activation swapped) and writes a self-contained HTML report ([open online](https://cookiesheep.github.io/univis/assets/reports/diff_cpu_demo.html)):
 
 <div align="center">
-<img src="https://cookiesheep.github.io/univis/assets/img/diff-report.png" alt="univis diff report" width="88%">
+<img src="https://cookiesheep.github.io/univis/assets/img/diff-showcase-en.png" alt="univis diff: terminal output and report" width="100%">
 </div>
 
 ## On your own model

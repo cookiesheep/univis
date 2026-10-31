@@ -53,7 +53,7 @@ Report: univis_diff_demo.html
 首次运行会下载 SmolLM2-135M（约 270 MB）；模型缓存好以后，在一台普通 Windows 电脑的 CPU 上约 40 秒跑完。它把同一个模型跑三遍：fp32 参考、正确的 bf16、第 17 层激活函数被换错的 bf16，然后生成一份自包含 HTML 报告（[在线打开](https://cookiesheep.github.io/univis/assets/reports/diff_cpu_demo.html)）：
 
 <div align="center">
-<img src="https://cookiesheep.github.io/univis/assets/img/diff-report.png" alt="univis diff report" width="88%">
+<img src="https://cookiesheep.github.io/univis/assets/img/diff-showcase-zh.png" alt="univis diff：终端输出与报告" width="100%">
 </div>
 
 ## 用在你自己的模型上
