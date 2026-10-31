@@ -7,6 +7,10 @@
 <meta name="description" content="模型搬到沐曦曦云 C500 上，算得对不对？如果不对，从哪一层开始不对？UniVis 是开源（MIT）的逐层对照工具，C500 真机三组规模全部通过，证据随仓库公开，无卡可审计。">
 <meta property="og:title" content="UniVis · 国产 GPU 上的大模型逐层对照">
 <meta property="og:description" content="正确版本和写错一层的版本，最终一致率都是 96.2%。UniVis 逐层对照，指出从哪一层开始不对。">
+<meta property="og:image" content="https://cookiesheep.github.io/univis/assets/img/social.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="color-scheme" content="dark light">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2308090d'/%3E%3Ccircle cx='10' cy='20' r='4' fill='%237e03a8'/%3E%3Ccircle cx='19' cy='13' r='4' fill='%23cc4778'/%3E%3Ccircle cx='24' cy='22' r='3' fill='%23f0f921'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -66,7 +70,7 @@
     </div>
     <div class="cta reveal">
       <a class="btn primary" href="play.html">在线体验（不用 GPU）</a>
-      <a class="btn" href="#video">4 分钟介绍视频</a>
+      <a class="btn" href="#video">70 秒宣传片</a>
       <a class="btn" href="https://github.com/cookiesheep/univis" rel="noopener">GitHub 仓库</a>
       <a class="btn" href="#gallery">查看真机报告（无卡可审计）</a>
       <button class="btn ghost mono" id="pipBtn" title="点击复制">pip install "univis[hf]"</button>
@@ -84,12 +88,12 @@
 <!-- ============ VIDEO ============ -->
 <section id="video" class="section">
   <div class="section-head reveal">
-    <p class="kicker">4 分钟了解 UniVis</p>
+    <p class="kicker">70 秒看懂 UniVis</p>
     <h2>问题、方法、C500 真机结果，一次看完</h2>
-    <p class="lede">配中文旁白与字幕。也可以<a href="play.html">直接上手在线体验</a>，或下载<a href="assets/slides/UniVis.pdf">项目介绍（PDF）</a>。</p>
+    <p class="lede">每一片玻璃是模型的一层，高度是真实测得的逐层误差倍数。也可以<a href="play.html">直接上手在线体验</a>，或下载<a href="assets/slides/UniVis.pdf">项目介绍（PDF）</a>。</p>
   </div>
   <video class="reveal" controls preload="none" poster="assets/img/video-poster.jpg" style="width:100%;border-radius:12px;border:1px solid var(--line)">
-    <source src="assets/video/UniVis-intro.mp4" type="video/mp4">
+    <source src="assets/video/UniVis-film-70s.mp4" type="video/mp4">
   </video>
 </section>
 

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://cookiesheep.github.io/univis/assets/img/hero.png" alt="UniVis — layer-wise A/B for LLMs on domestic GPUs" width="100%">
+<img src="https://cookiesheep.github.io/univis/assets/img/hero-en.jpg" alt="UniVis — layer-wise A/B for LLMs on domestic GPUs" width="100%">
 
 **Your model now runs on a domestic GPU. Is it computing the right thing — and if not, from which layer on?**
 
@@ -13,7 +13,7 @@
 [![MetaX C500](https://img.shields.io/badge/MetaX_C500-tested-c2410c.svg)](docs/mxmaca/phase-b/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**[▶ Try it online (no GPU)](https://cookiesheep.github.io/univis/play.html)** · [🎬 4-min video (Chinese)](https://cookiesheep.github.io/univis/#video) · [📑 Slides (PDF, Chinese)](https://cookiesheep.github.io/univis/assets/slides/UniVis.pdf) · [Gallery](https://cookiesheep.github.io/univis/) · [30-second start](#30-second-start-cpu-no-gpu) · [Evidence](#evidence) · [Support contract](#support-contract-and-scope) · [简体中文](README.md)
+**[▶ Try it online (no GPU)](https://cookiesheep.github.io/univis/play.html)** · [🎬 70-second film](https://cookiesheep.github.io/univis/#video) · [📑 Slides (PDF, Chinese)](https://cookiesheep.github.io/univis/assets/slides/UniVis.pdf) · [Gallery](https://cookiesheep.github.io/univis/) · [30-second start](#30-second-start-cpu-no-gpu) · [Evidence](#evidence) · [Support contract](#support-contract-and-scope) · [简体中文](README.md)
 
 </div>
 
